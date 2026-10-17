@@ -1,0 +1,42 @@
+# ---- Secrets (nikdy sa nesmú dostať do repozitára!) ----
+.env
+.env.*
+!.env.example
+
+# ---- Python ----
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# ---- Node / frontend ----
+node_modules/
+dist/
+build/
+.react-router/
+*.tsbuildinfo
+
+# ---- ML artefakty (trénujú sa lokálne, necommitujú sa) ----
+ml/models/
+ml/figures/
+ml/catboost_info/
+*.joblib
+
+# ---- Dáta (scrapované CSV/DB dumpy – nie sú open-source) ----
+postgres_data/
+*.csv
+*.sql
+
+# ---- Docker volumes ----
+letsencrypt/
+data/
+
+# ---- OS / editory ----
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
