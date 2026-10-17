@@ -25,7 +25,7 @@ def trigger_scrape(
     user: User = Depends(get_current_user),
 ) -> dict:
     """Queue a small scrape run; the worker processes it in the background."""
-    pages = max(1, min(pages, config.SCRAPE_MAX_PAGES_PER_RUN))
+    pages = max(1, min(pages, config.SCRAPE_QUICK_MAX_PAGES))
     jobs.enqueue({"type": "scrape", "pages": pages, "requested_by": user.id})
     return {"queued": True, "pages": pages}
 

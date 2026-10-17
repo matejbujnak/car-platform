@@ -269,11 +269,16 @@ def iter_pages(
     part fits under the cap - otherwise listings beyond the cap would be lost.
     """
     session = _make_session()
-    yield from _iter_pages(session, max_pages, filters or {}, split, depth=0)
+    yield from _iter_pages(session, max_pages, filters or {}, split, depth=0, seen=set())
 
 
 def _split_by_price(filters: dict) -> list[dict]:
-    """Split a filter into two non-overlapping price halves."""
+    """Split a filter into two price halves that overlap at the middle price.
+
+    The overlap makes the split safe no matter whether the site treats the
+    bounds as inclusive or exclusive; cars appearing in both halves are
+    de-duplicated in _iter_pages.
+    """
     lo = int(filters.get("price_from", PRICE_MIN))
     hi = int(filters.get("price_to", PRICE_MAX))
     if hi - lo < 2:
@@ -281,7 +286,7 @@ def _split_by_price(filters: dict) -> list[dict]:
     mid = (lo + hi) // 2
     return [
         {**filters, "price_from": lo, "price_to": mid},
-        {**filters, "price_from": mid + 1, "price_to": hi},
+        {**filters, "price_from": mid, "price_to": hi},
     ]
 
 
@@ -291,6 +296,7 @@ def _iter_pages(
     filters: dict,
     split: bool,
     depth: int,
+    seen: set[str],
 ) -> Iterator[list[dict]]:
     listings, total = _fetch_page(session, 1, filters)
     if not listings or total <= 0:
@@ -300,7 +306,7 @@ def _iter_pages(
     if split and total > cap:
         if depth < MAX_SPLIT_DEPTH:
             for part in _split_by_price(filters):
-                yield from _iter_pages(session, max_pages, part, split, depth + 1)
+                yield from _iter_pages(session, max_pages, part, split, depth + 1, seen)
             return
         log.warning(
             "Filter %s has %s results and cannot be split further - "
@@ -310,23 +316,29 @@ def _iter_pages(
             cap,
         )
 
-    yielded = 0
+    # `pos` counts every result of this filter (the site pads sparse pages with
+    # promoted cars beyond `total`); `seen` drops duplicates from overlapping
+    # price splits.
+    pos = 0
 
     def take(page_listings: list[dict]) -> Iterator[list[dict]]:
-        nonlocal yielded
+        nonlocal pos
         batch: list[dict] = []
         for item in page_listings:
-            if yielded >= total:
+            if pos >= total:
                 break
+            pos += 1
+            if item["source_id"] in seen:
+                continue
+            seen.add(item["source_id"])
             batch.append(item)
-            yielded += 1
         if batch:
             yield batch
 
     yield from take(listings)
 
     for page in range(2, min(max_pages, MAX_PAGE) + 1):
-        if yielded >= total or (page - 1) * PER_PAGE >= total:
+        if pos >= total or (page - 1) * PER_PAGE >= total:
             return
         listings, _ = _fetch_page(session, page, filters)
         if not listings:

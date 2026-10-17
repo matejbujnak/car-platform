@@ -68,7 +68,7 @@ def run_quick_scrape(job: dict) -> None:
         log.info("Skipping scrape job: outside the scrape window")
         return
 
-    pages = min(int(job.get("pages") or 2), config.SCRAPE_MAX_PAGES_PER_RUN)
+    pages = min(int(job.get("pages") or 2), config.SCRAPE_QUICK_MAX_PAGES)
     log.info("Quick scrape started (max %s pages)", pages)
 
     with Session(engine) as session:
