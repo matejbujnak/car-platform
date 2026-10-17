@@ -3,11 +3,12 @@
 from fastapi import APIRouter, Depends, Request
 from sqlmodel import Session, select
 
-from app import config, tasks
-from app.auth import get_current_user, require_roles
-from app.db import get_session
-from app.models import Role, ScrapeRun, User
-from app.rate_limit import limiter
+from app import config
+from app.scraping import jobs
+from app.core.auth import get_current_user, require_roles
+from app.db.session import get_session
+from app.db.models import Role, ScrapeRun, User
+from app.core.rate_limit import limiter
 
 router = APIRouter(
     prefix="/api/admin",
@@ -25,7 +26,7 @@ def trigger_scrape(
 ) -> dict:
     """Queue a scrape job; the worker processes it in the background."""
     pages = max(1, min(pages, config.SCRAPE_MAX_PAGES_PER_RUN))
-    tasks.enqueue({"type": "scrape", "pages": pages, "requested_by": user.id})
+    jobs.enqueue({"type": "scrape", "pages": pages, "requested_by": user.id})
     return {"queued": True, "pages": pages}
 
 

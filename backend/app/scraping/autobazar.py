@@ -29,7 +29,8 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
-from app import config, tasks
+from app import config
+from app.scraping import jobs
 
 log = logging.getLogger(__name__)
 
@@ -123,7 +124,7 @@ def _polite_sleep() -> None:
 def _get(session: requests.Session, url: str) -> str:
     if not _robots_allowed(session, url):
         raise ScrapeBlocked(f"robots.txt does not allow {url}")
-    count = tasks.incr_window_counter("scrape-requests", 3600)
+    count = jobs.incr_window_counter("scrape-requests", 3600)
     if count > config.SCRAPE_MAX_PER_HOUR:
         raise HourlyLimitReached(
             f"request budget used up ({config.SCRAPE_MAX_PER_HOUR} requests/hour)"

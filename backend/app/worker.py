@@ -8,15 +8,16 @@ import time
 
 from sqlmodel import Session
 
-from app import config, scraper, store, tasks
-from app.db import engine
-from app.models import ScrapeRun, utcnow
+from app import config
+from app.scraping import autobazar, jobs, store
+from app.db.session import engine
+from app.db.models import ScrapeRun, utcnow
 
 log = logging.getLogger("worker")
 
 
 def run_scrape_job(job: dict) -> None:
-    if not scraper.within_scrape_window():
+    if not autobazar.within_scrape_window():
         log.info(
             "Skipping scrape job: outside the scrape window (UTC %s-%s)",
             config.SCRAPE_WINDOW_START_HOUR,
@@ -35,13 +36,13 @@ def run_scrape_job(job: dict) -> None:
 
         new = updated = 0
         try:
-            for batch in scraper.iter_pages(pages):
+            for batch in autobazar.iter_pages(pages):
                 n, u = store.upsert_listings(session, batch)
                 new += n
                 updated += u
                 log.info("Saved page batch: %s new, %s updated", n, u)
             run.status = ScrapeRun.Status.success
-        except scraper.HourlyLimitReached as exc:
+        except autobazar.HourlyLimitReached as exc:
             # Partial results are fine; just stop politely and try later.
             log.warning("Stopping scrape run: %s", exc)
             run.status = ScrapeRun.Status.success
@@ -75,7 +76,7 @@ def main() -> None:
     log.info("Worker started, waiting for jobs...")
     while True:
         try:
-            job = tasks.dequeue(timeout=5)
+            job = jobs.dequeue(timeout=5)
             if job is None:
                 continue
             log.info("Job received: %s", job)

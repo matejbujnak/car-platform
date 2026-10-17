@@ -7,7 +7,7 @@ from sqlalchemy import create_engine
 from sqlmodel import SQLModel
 
 # Import models so SQLModel.metadata knows about every table.
-from app import models  # noqa: F401
+from app.db import models  # noqa: F401
 from app.config import DATABASE_URL
 
 config = context.config

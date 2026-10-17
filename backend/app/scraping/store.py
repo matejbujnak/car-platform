@@ -2,7 +2,7 @@
 
 from sqlmodel import Session, select
 
-from app.models import Listing, utcnow
+from app.db.models import Listing, utcnow
 
 
 def upsert_listings(session: Session, items: list[dict]) -> tuple[int, int]:

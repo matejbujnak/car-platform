@@ -8,8 +8,8 @@ from fastapi.security import OAuth2PasswordBearer
 from sqlmodel import Session, select
 
 from app.config import ACCESS_TOKEN_EXPIRE_MINUTES, SECRET_KEY
-from app.db import get_session
-from app.models import Role, User
+from app.db.session import get_session
+from app.db.models import Role, User
 
 ALGORITHM = "HS256"
 

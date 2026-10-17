@@ -5,8 +5,8 @@ import logging
 from sqlmodel import Session, select
 
 from app import config
-from app.models import Role, User
-from app.security import hash_password
+from app.db.models import Role, User
+from app.core.security import hash_password
 
 log = logging.getLogger(__name__)
 

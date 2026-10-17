@@ -11,10 +11,10 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlmodel import Session
 
 from app import config
-from app.db import engine
-from app.rate_limit import limiter
-from app.routers import admin, auth, health, listings
-from app.seed import seed_admin
+from app.db.session import engine
+from app.core.rate_limit import limiter
+from app.api.routers import admin, auth, health, listings
+from app.db.seed import seed_admin
 
 
 @asynccontextmanager

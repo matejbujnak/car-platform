@@ -3,8 +3,8 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, func, select
 
-from app.db import get_session
-from app.models import Listing
+from app.db.session import get_session
+from app.db.models import Listing
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
 
