@@ -1,4 +1,4 @@
-# ---- Secrets (nikdy sa nesmú dostať do repozitára!) ----
+# ---- Secrets (never commit real values) ----
 .env
 .env.*
 !.env.example
@@ -20,13 +20,13 @@ build/
 .react-router/
 *.tsbuildinfo
 
-# ---- ML artefakty (trénujú sa lokálne, necommitujú sa) ----
+# ---- ML artifacts (trained locally) ----
 ml/models/
 ml/figures/
 ml/catboost_info/
 *.joblib
 
-# ---- Dáta (scrapované CSV/DB dumpy – nie sú open-source) ----
+# ---- Data (scraped CSV / DB dumps) ----
 postgres_data/
 *.csv
 *.sql
@@ -35,7 +35,7 @@ postgres_data/
 letsencrypt/
 data/
 
-# ---- OS / editory ----
+# ---- OS / editors ----
 .DS_Store
 Thumbs.db
 .idea/

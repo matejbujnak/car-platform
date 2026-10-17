@@ -1,39 +1,39 @@
 # Car Market Analyzer
 
-Open-source platforma na analýzu trhu ojazdených áut: scraper sťahuje inzeráty,
-ML model odhadne **férovú cenu** auta a aplikácia ukáže, ktoré autá sú **lacné
-(dobrý deal)** a ktoré **predražené**.
+Open-source platform for analyzing the used-car market: a scraper collects car
+listings, an ML model estimates a **fair price** for each car, and the app shows
+which cars are **cheap (good deals)** and which are **overpriced**.
 
-> **Status: 🚧 rozpracované** – projekt sa stavia po fázach (viď nižšie).
+> **Status: 🚧 work in progress** — the project is built in phases (see below).
 
-## Čo to robí
+## What it does
 
-- **Scrape** inzerátov (autobazar.eu) – slušne, s limitmi a checkpointmi
-- **ML odhad férovej ceny** + predikčný interval → *deal skóre* pre každé auto
-- **Verejné demo**: prehľad inzerátov, detail auta s analýzou, kalkulátor férovej ceny
-- **Admin**: spustenie scrape jobov, retraining modelu, metriky
+- **Scrape** car listings — politely, with rate limits and checkpoints
+- **ML fair-price estimate** + prediction interval → a *deal score* per car
+- **Public demo**: listing feed, car detail with price analysis, fair-price calculator
+- **Admin**: trigger scrape jobs, retrain the model, view metrics
 
-## Rýchly štart (lokálne)
+## Quick start (local)
 
-_(doplníme v ďalších fázach)_
+_(to be filled in during development)_
 
 ```bash
 docker compose -f docker-compose.dev.yml up
 ```
 
-## Fázy vývoja
+## Development phases
 
-1. ✅ Základ repozitára (git, licencia, env template)
-2. ⬜ Backend core (DB + migrácie + auth)
+1. ✅ Repository setup (git, license, env template)
+2. ⬜ Backend core (database + migrations + auth)
 3. ⬜ Scraper worker
-4. ⬜ ML pipeline + deal skóre
+4. ⬜ ML pipeline + deal score
 5. ⬜ Frontend (demo + admin)
-6. ⬜ Deploy (NPM + doména + bezpečnostný audit)
-7. ⬜ Testy, dokumentácia, screenshoty
+6. ⬜ Deployment (reverse proxy + domain + security hardening)
+7. ⬜ Tests, documentation, screenshots
 
-## Licencia
+## License
 
 [MIT](LICENSE) © 2026 Matej Bujnak
 
-Dáta scrapované z autobazar.eu nie sú súčasťou repozitára a podliehajú
-podmienkam zdrojového webu.
+Scraped data is **not** part of this repository and remains subject to the
+terms of the source website.
