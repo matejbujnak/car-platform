@@ -39,14 +39,23 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from app import config
 from app.db.models import ModelVersion
 from app.db.session import engine
-from app.ml.features import CATEGORICAL, CURRENT_YEAR, NUMERIC, add_features, simplify_gearbox
+from app.ml.features import (
+    CATEGORICAL,
+    CURRENT_YEAR,
+    NUMERIC,
+    PRICE_MAX,
+    PRICE_MIN,
+    add_features,
+    plausible_price,
+    simplify_gearbox,
+)
 from sqlmodel import Session, select
 
 RANDOM_STATE = 42
 TARGET = "price_eur"
 
-# Cleaning bounds (bad rows poison the model).
-PRICE_MIN, PRICE_MAX = 500, 200_000
+# Cleaning bounds (bad rows poison the model). PRICE_MIN/MAX come from
+# app.ml.features so training and deal scoring agree.
 YEAR_MIN, YEAR_MAX = 1990, CURRENT_YEAR
 MILEAGE_MAX = 500_000
 

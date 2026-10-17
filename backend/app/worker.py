@@ -15,6 +15,7 @@ from sqlmodel import Session, select
 from app import config
 from app.db.models import Listing, ModelVersion, Prediction, ScrapeRun, utcnow
 from app.db.session import engine
+from app.ml.features import plausible_price
 from app.ml.predict import CAR_FIELDS, active_model, deal_verdict, load_artifact, predict_prices
 from app.scraping import autobazar, jobs, store
 
@@ -246,7 +247,7 @@ def run_prediction_backfill() -> None:
             )
             for row, pred in zip(rows, predictions):
                 verdict = score = None
-                if row.price_eur:
+                if plausible_price(row.price_eur):
                     verdict, score = deal_verdict(row.price_eur, pred)
                 session.add(
                     Prediction(

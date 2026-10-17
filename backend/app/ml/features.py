@@ -7,6 +7,15 @@ import pandas as pd
 
 CURRENT_YEAR = datetime.now(timezone.utc).year
 
+# Plausible price bounds (EUR). Listings outside this range are leasing
+# placeholders or jokes ("on request", "please ignore") and are excluded from
+# training and deal scoring.
+PRICE_MIN, PRICE_MAX = 500, 200_000
+
+
+def plausible_price(price_eur) -> bool:
+    return price_eur is not None and PRICE_MIN <= price_eur <= PRICE_MAX
+
 # Numeric features (built from the raw listing columns).
 NUMERIC = [
     "car_age",

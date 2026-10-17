@@ -59,12 +59,16 @@ def predict_price(artifact: dict, car: dict) -> dict:
     return predict_prices(artifact, [car])[0]
 
 
-def deal_verdict(price_eur: float, prediction: dict) -> tuple[str, float]:
+def deal_verdict(price_eur: float, prediction: dict) -> tuple[str, float | None]:
     """Classify a listing price against the prediction interval.
 
     Returns (verdict, deal_score); deal_score > 0 means cheaper than fair.
+    Prices far below any plausible value are placeholder/leasing prices, not
+    real deals ("suspicious").
     """
     fair = prediction["fair_price_eur"]
+    if fair and price_eur < fair * 0.4:
+        return "suspicious", None
     score = (fair - price_eur) / fair if fair else 0.0
     if price_eur < prediction["interval_low_eur"]:
         verdict = "cheap"

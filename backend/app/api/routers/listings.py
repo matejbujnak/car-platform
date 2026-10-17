@@ -12,6 +12,7 @@ from app.ml.predict import (
     load_artifact,
     predict_prices,
 )
+from app.ml.features import plausible_price
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
 
@@ -79,7 +80,7 @@ def _enriched(rows: list[Listing], session: Session) -> list[dict]:
         )
         for row, pred in zip(missing, predictions):
             verdict = score = None
-            if row.price_eur:
+            if plausible_price(row.price_eur):
                 verdict, score = deal_verdict(row.price_eur, pred)
             cached[row.id] = {
                 **pred,
@@ -96,18 +97,34 @@ def list_listings(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     make: str | None = Query(None),
+    sort: str = Query(
+        "newest", pattern="^(newest|deal_score|price_low|price_high)$"
+    ),
 ) -> dict:
-    """Paginated listing feed (newest data first)."""
+    """Paginated listing feed with optional filtering and sorting."""
     query = select(Listing)
     count_query = select(func.count()).select_from(Listing)
     if make:
         query = query.where(Listing.make == make)
         count_query = count_query.where(Listing.make == make)
 
+    mv = active_model(session)
+    if sort == "deal_score" and mv is not None:
+        # Best deals first (deal_score > 0 means cheaper than fair).
+        query = query.join(
+            Prediction,
+            (Prediction.listing_id == Listing.id)
+            & (Prediction.model_version_id == mv.id),
+        ).order_by(Prediction.deal_score.desc().nulls_last())
+    elif sort == "price_low":
+        query = query.order_by(Listing.price_eur.asc().nulls_last())
+    elif sort == "price_high":
+        query = query.order_by(Listing.price_eur.desc().nulls_last())
+    else:
+        query = query.order_by(Listing.id.desc())
+
     total = session.exec(count_query).one()
-    rows = session.exec(
-        query.order_by(Listing.id.desc()).offset(offset).limit(limit)
-    ).all()
+    rows = session.exec(query.offset(offset).limit(limit)).all()
     return {"total": total, "items": _enriched(rows, session)}
 
 
