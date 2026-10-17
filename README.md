@@ -15,10 +15,31 @@ which cars are **cheap (good deals)** and which are **overpriced**.
 
 ## Quick start (local)
 
-_(to be filled in during development)_
+Requirements: Docker with Docker Compose.
 
 ```bash
 docker compose -f docker-compose.dev.yml up
+```
+
+- API: http://localhost:8000 (interactive docs at `/docs`)
+- Postgres: `127.0.0.1:5432` (user/pass/db: `car_platform` / `car_platform` / `car_platform_dev`)
+- Redis: `127.0.0.1:6379`
+
+If the default host ports clash with other local services, override them:
+
+```bash
+BACKEND_PORT=8001 POSTGRES_PORT=5433 REDIS_PORT=6380 \
+  docker compose -f docker-compose.dev.yml up
+```
+
+## Project structure
+
+```
+backend/    FastAPI application
+frontend/   React SPA (Vite)
+ml/         model training + evaluation
+worker/     background jobs (scraper, ML tasks)
+deploy/     deployment configs and scripts
 ```
 
 ## Development phases

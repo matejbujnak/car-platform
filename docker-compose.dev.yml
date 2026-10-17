@@ -1,0 +1,59 @@
+# Local development stack with hot-reload.
+#
+#   docker compose -f docker-compose.dev.yml up
+#
+# API:      http://localhost:8000 (interactive docs at /docs)
+# Postgres: 127.0.0.1:5432 (user/pass/db: car_platform / car_platform / car_platform_dev)
+# Redis:    127.0.0.1:6379
+#
+# Host ports can be overridden when they clash with other local services:
+#   BACKEND_PORT=8001 POSTGRES_PORT=5433 REDIS_PORT=6380 \
+#     docker compose -f docker-compose.dev.yml up
+
+services:
+  backend:
+    build: ./backend
+    container_name: car-platform-backend-dev
+    restart: unless-stopped
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      - DATABASE_URL=postgresql://car_platform:car_platform@postgres_db:5432/car_platform_dev
+      - REDIS_URL=redis://redis:6379/0
+    volumes:
+      - ./backend:/app
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: car-platform-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: car_platform
+      POSTGRES_PASSWORD: car_platform
+      POSTGRES_DB: car_platform_dev
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U car_platform -d car_platform_dev"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: car-platform-redis-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:
