@@ -251,23 +251,71 @@ def _fetch_page(session: requests.Session, page: int, filters: Optional[dict]) -
     return parsed, total
 
 
-def iter_pages(max_pages: int, filters: Optional[dict] = None) -> Iterator[list[dict]]:
+def iter_pages(
+    max_pages: int,
+    filters: Optional[dict] = None,
+    *,
+    split: bool = False,
+) -> Iterator[list[dict]]:
     """Yield one batch of parsed listings per page.
 
     When a filter has few/no matches, the site pads the page with promoted cars
     from other makes/years. `total` is the real match count, so we take only the
     first `total` results and stop - otherwise those padded cars get scraped
     repeatedly and pollute the data.
+
+    With split=True, filters matching more than the site cap (MAX_PAGE x
+    PER_PAGE results) are automatically split into price halves until every
+    part fits under the cap - otherwise listings beyond the cap would be lost.
     """
     session = _make_session()
-    yielded = 0
-    for page in range(1, min(max_pages, MAX_PAGE) + 1):
-        listings, total = _fetch_page(session, page, filters)
-        if not listings or total <= 0:
-            return
+    yield from _iter_pages(session, max_pages, filters or {}, split, depth=0)
 
+
+def _split_by_price(filters: dict) -> list[dict]:
+    """Split a filter into two non-overlapping price halves."""
+    lo = int(filters.get("price_from", PRICE_MIN))
+    hi = int(filters.get("price_to", PRICE_MAX))
+    if hi - lo < 2:
+        return []
+    mid = (lo + hi) // 2
+    return [
+        {**filters, "price_from": lo, "price_to": mid},
+        {**filters, "price_from": mid + 1, "price_to": hi},
+    ]
+
+
+def _iter_pages(
+    session: requests.Session,
+    max_pages: int,
+    filters: dict,
+    split: bool,
+    depth: int,
+) -> Iterator[list[dict]]:
+    listings, total = _fetch_page(session, 1, filters)
+    if not listings or total <= 0:
+        return
+
+    cap = MAX_PAGE * PER_PAGE
+    if split and total > cap:
+        if depth < MAX_SPLIT_DEPTH:
+            for part in _split_by_price(filters):
+                yield from _iter_pages(session, max_pages, part, split, depth + 1)
+            return
+        log.warning(
+            "Filter %s has %s results and cannot be split further - "
+            "crawling the first %s",
+            filters,
+            total,
+            cap,
+        )
+
+    yielded = 0
+
+    def take(page_listings: list[dict]) -> Iterator[list[dict]]:
+        nonlocal yielded
         batch: list[dict] = []
-        for item in listings:
+        for item in page_listings:
             if yielded >= total:
                 break
             batch.append(item)
@@ -275,8 +323,15 @@ def iter_pages(max_pages: int, filters: Optional[dict] = None) -> Iterator[list[
         if batch:
             yield batch
 
-        if yielded >= total or page * PER_PAGE >= total:
+    yield from take(listings)
+
+    for page in range(2, min(max_pages, MAX_PAGE) + 1):
+        if yielded >= total or (page - 1) * PER_PAGE >= total:
             return
+        listings, _ = _fetch_page(session, page, filters)
+        if not listings:
+            return
+        yield from take(listings)
 
 
 # --- full-site crawl ---------------------------------------------------------
@@ -284,6 +339,11 @@ def iter_pages(max_pages: int, filters: Optional[dict] = None) -> Iterator[list[
 # Keep the dataset focused on cars that are interesting for price analysis.
 BASE_YEAR_FROM = 2018
 BASE_MILEAGE_TO = 250_000
+
+# Price bounds used to split crowded filters (effectively all real prices).
+PRICE_MIN = 0
+PRICE_MAX = 1_000_000
+MAX_SPLIT_DEPTH = 6
 
 
 def current_max_year() -> int:

@@ -25,7 +25,11 @@ POLL_SECONDS = 10
 # --- scheduling -------------------------------------------------------------
 
 def _full_scrape_pending(session: Session, now: datetime) -> bool:
-    """True when today's scheduled full crawl should be started now."""
+    """True when today's scheduled full crawl should be started now.
+
+    At most one full crawl runs per day: a crawl triggered manually ("scrape
+    now" button) counts as well, so the scheduled crawl is skipped for that day.
+    """
     if now.hour < config.SCRAPE_SCHEDULE_HOUR:
         return False
 
@@ -167,7 +171,9 @@ def run_full_scrape(job: dict) -> None:
                 filters = autobazar.segment_filters(make, year)
                 while True:  # retries the segment after a rate-limit pause
                     try:
-                        for batch in autobazar.iter_pages(autobazar.MAX_PAGE, filters):
+                        for batch in autobazar.iter_pages(
+                            autobazar.MAX_PAGE, filters, split=True
+                        ):
                             batch = [i for i in batch if i["source_id"] not in seen]
                             seen.update(i["source_id"] for i in batch)
                             if not batch:
