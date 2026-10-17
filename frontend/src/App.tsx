@@ -9,7 +9,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="mx-auto max-w-6xl px-4 pb-16">
+      <main className="mx-auto max-w-5xl px-4 pb-16">
         <Routes>
           <Route path="/" element={<CarsPage />} />
           <Route path="/car/:id" element={<CarPage />} />
