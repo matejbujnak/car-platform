@@ -36,10 +36,21 @@ BACKEND_PORT=8001 POSTGRES_PORT=5433 REDIS_PORT=6380 \
 
 The scraper runs in a separate worker container and consumes jobs from a queue.
 It is deliberately slow and polite (robots.txt, request limits, delays) to avoid
-overloading the source site. As admin, queue a run via the API:
+overloading the source site.
+
+- **Daily crawl** – once a day (default 22:00, see `SCRAPE_SCHEDULE_HOUR`) the
+  worker crawls the whole catalogue segment by segment. It runs for hours, saves
+  a checkpoint after every segment, and resumes where it stopped after a crash
+  or restart.
+- **Manual runs** – as admin, queue a run via the API:
 
 ```bash
+# small run: first N listing pages
 curl -X POST "http://localhost:8000/api/admin/scrape?pages=2" \
+  -H "Authorization: Bearer $TOKEN"
+
+# full crawl (optionally limited to a few segments for testing)
+curl -X POST "http://localhost:8000/api/admin/scrape/full?max_segments=3" \
   -H "Authorization: Bearer $TOKEN"
 ```
 

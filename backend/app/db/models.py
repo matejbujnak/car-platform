@@ -61,10 +61,17 @@ class ScrapeRun(SQLModel, table=True):
         success = "success"
         failed = "failed"
 
+    class Kind(str, Enum):
+        quick = "quick"  # small manual run
+        full = "full"  # full-site crawl (scheduled or manual)
+
     id: Optional[int] = Field(default=None, primary_key=True)
+    kind: Kind = Field(default=Kind.quick)
     started_at: datetime = Field(default_factory=utcnow)
     finished_at: Optional[datetime] = Field(default=None)
     status: Status = Field(default=Status.running)
+    cursor: Optional[int] = Field(default=None)  # resume position in a full crawl
+    current_segment: Optional[str] = Field(default=None)  # e.g. "skoda 2021"
     listings_new: int = Field(default=0)
     listings_updated: int = Field(default=0)
     error: Optional[str] = Field(default=None)

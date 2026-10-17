@@ -24,9 +24,11 @@ import time
 from datetime import datetime, timezone
 from typing import Iterator, Optional
 from urllib.robotparser import RobotFileParser
+from zoneinfo import ZoneInfo
 
 import requests
 from requests.adapters import HTTPAdapter
+from requests.exceptions import RequestException
 from urllib3.util.retry import Retry
 
 from app import config
@@ -100,11 +102,11 @@ def _robots_allowed(session: requests.Session, url: str) -> bool:
 
 
 def within_scrape_window() -> bool:
-    """True when scraping is allowed at the current hour (UTC)."""
+    """True when scraping is allowed at the current hour (schedule timezone)."""
     start, end = config.SCRAPE_WINDOW_START_HOUR, config.SCRAPE_WINDOW_END_HOUR
     if start == end:
         return True  # window disabled
-    hour = datetime.now(timezone.utc).hour
+    hour = datetime.now(ZoneInfo(config.SCHEDULE_TZ)).hour
     if start < end:
         return start <= hour < end
     return hour >= start or hour < end  # window wraps around midnight
@@ -200,6 +202,12 @@ def _build_url(page: int = 1, filters: Optional[dict] = None) -> str:
         val = filters.get(key)
         if val is not None:
             params.append(f"{qs}={val}")
+    # site quirk: damaged=true means NON-damaged, damaged=false means damaged.
+    damaged = filters.get("damaged")
+    if damaged is True:
+        params.append("damaged=true")
+    elif damaged is False:
+        params.append("damaged=false")
     if page > 1:
         params.append(f"page={page}")
 
@@ -269,3 +277,57 @@ def iter_pages(max_pages: int, filters: Optional[dict] = None) -> Iterator[list[
 
         if yielded >= total or page * PER_PAGE >= total:
             return
+
+
+# --- full-site crawl ---------------------------------------------------------
+
+# Keep the dataset focused on cars that are interesting for price analysis.
+BASE_YEAR_FROM = 2018
+BASE_MILEAGE_TO = 250_000
+
+
+def current_max_year() -> int:
+    return datetime.now(timezone.utc).year
+
+
+def fetch_makes() -> list[str]:
+    """Return make slugs from the aggregations on the main listings page."""
+    session = _make_session()
+    data = _extract_next_data(_get(session, _build_url(1)))
+    if not data:
+        return []
+    try:
+        aggs = data["props"]["pageProps"]["aggregations"]["aggregations"]
+    except (KeyError, TypeError):
+        return []
+    return [a["sef"] for a in aggs if a.get("sef")]
+
+
+def build_segments() -> list[tuple[Optional[str], int]]:
+    """Ordered (make, year) segments covering the whole catalogue.
+
+    The site caps results at MAX_PAGE pages per filter, so a full crawl must be
+    split into small segments. Sorted so a saved cursor stays valid across
+    restarts.
+    """
+    try:
+        makes = sorted(m for m in fetch_makes() if m) or [None]
+    except RequestException as err:
+        log.warning("fetch_makes failed (%s) - crawling without make split", err)
+        makes = [None]
+    return [
+        (make, year)
+        for make in makes
+        for year in range(BASE_YEAR_FROM, current_max_year() + 1)
+    ]
+
+
+def segment_filters(make: Optional[str], year: int) -> dict:
+    """Filter set for one (make, year) segment of the full crawl."""
+    return {
+        "make": make,
+        "year_from": year,
+        "year_to": year,
+        "mileage_to": BASE_MILEAGE_TO,
+        "damaged": True,  # site quirk: true == NON-damaged
+    }

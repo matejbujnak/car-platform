@@ -49,13 +49,19 @@ ALLOWED_ORIGINS = [
 ]
 
 # Scraper politeness (the source site must not be hammered).
-SCRAPE_MAX_PER_HOUR = int(os.getenv("SCRAPE_MAX_PER_HOUR", "30"))
+SCRAPE_MAX_PER_HOUR = int(os.getenv("SCRAPE_MAX_PER_HOUR", "300"))
 SCRAPE_MAX_PAGES_PER_RUN = int(os.getenv("SCRAPE_MAX_PAGES_PER_RUN", "5"))
 SCRAPE_MIN_DELAY_SECONDS = float(os.getenv("SCRAPE_MIN_DELAY_SECONDS", "7"))
 SCRAPE_MAX_DELAY_SECONDS = float(os.getenv("SCRAPE_MAX_DELAY_SECONDS", "14"))
-# Only scrape during this hour window (UTC). Start == end disables the window.
+# Only scrape during this hour window (e.g. 1-5 = night hours).
+# Start == end disables the window.
 SCRAPE_WINDOW_START_HOUR = int(os.getenv("SCRAPE_WINDOW_START_HOUR", "0"))
 SCRAPE_WINDOW_END_HOUR = int(os.getenv("SCRAPE_WINDOW_END_HOUR", "0"))
+
+# Daily scheduled full-site crawl.
+SCRAPE_SCHEDULE_HOUR = int(os.getenv("SCRAPE_SCHEDULE_HOUR", "22"))
+# Timezone for SCRAPE_SCHEDULE_HOUR and the scrape window hours.
+SCHEDULE_TZ = os.getenv("SCHEDULE_TZ", "UTC")
 
 
 def check_production_settings() -> None:
