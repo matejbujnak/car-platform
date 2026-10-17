@@ -22,14 +22,19 @@ def load_artifact(path: str) -> dict:
     return joblib.load(path)
 
 
-def active_artifact(session: Session) -> dict | None:
-    """The artifact of the active model version, or None when untrained."""
-    mv = session.exec(
+def active_model(session: Session) -> ModelVersion | None:
+    """The active model version, or None when nothing is trained yet."""
+    return session.exec(
         select(ModelVersion)
         .where(ModelVersion.is_active == True)  # noqa: E712
         .order_by(ModelVersion.id.desc())
         .limit(1)
     ).first()
+
+
+def active_artifact(session: Session) -> dict | None:
+    """The artifact of the active model version, or None when untrained."""
+    mv = active_model(session)
     if mv is None:
         return None
     return load_artifact(mv.artifact_path)

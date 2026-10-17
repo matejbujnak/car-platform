@@ -3,11 +3,27 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session, func, select
 
-from app.db.models import Listing
+from app.db.models import Listing, Prediction
 from app.db.session import get_session
-from app.ml.predict import CAR_FIELDS, active_artifact, deal_verdict, predict_prices
+from app.ml.predict import (
+    CAR_FIELDS,
+    active_model,
+    deal_verdict,
+    load_artifact,
+    predict_prices,
+)
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
+
+
+def _cached_prediction(row: Prediction) -> dict:
+    return {
+        "fair_price_eur": round(row.fair_price_eur),
+        "interval_low_eur": round(row.interval_low_eur),
+        "interval_high_eur": round(row.interval_high_eur),
+        "deal_verdict": row.deal_verdict,
+        "deal_score": row.deal_score,
+    }
 
 
 def _listing_dict(row: Listing, prediction: dict | None) -> dict:
@@ -32,22 +48,46 @@ def _listing_dict(row: Listing, prediction: dict | None) -> dict:
     }
     if prediction is not None:
         item.update(prediction)
-        if row.price_eur:
-            verdict, score = deal_verdict(row.price_eur, prediction)
-            item["deal_verdict"] = verdict
-            item["deal_score"] = score
     return item
 
 
 def _enriched(rows: list[Listing], session: Session) -> list[dict]:
-    """Attach fair-price predictions to listings when a model is trained."""
-    artifact = active_artifact(session)
-    predictions = (
-        predict_prices(artifact, [{k: getattr(r, k) for k in CAR_FIELDS} for r in rows])
-        if artifact is not None
-        else [None] * len(rows)
-    )
-    return [_listing_dict(row, pred) for row, pred in zip(rows, predictions)]
+    """Attach fair-price predictions from the cache (computed by the worker).
+
+    Very fresh listings may not be cached yet - for those the prediction is
+    computed on the fly and will be cached by the next backfill run.
+    """
+    mv = active_model(session)
+    if mv is None:
+        return [_listing_dict(row, None) for row in rows]
+
+    cached = {
+        p.listing_id: _cached_prediction(p)
+        for p in session.exec(
+            select(Prediction).where(
+                Prediction.model_version_id == mv.id,
+                Prediction.listing_id.in_([row.id for row in rows]),
+            )
+        ).all()
+    }
+
+    missing = [row for row in rows if row.id not in cached]
+    if missing:
+        artifact = load_artifact(mv.artifact_path)
+        predictions = predict_prices(
+            artifact, [{k: getattr(r, k) for k in CAR_FIELDS} for r in missing]
+        )
+        for row, pred in zip(missing, predictions):
+            verdict = score = None
+            if row.price_eur:
+                verdict, score = deal_verdict(row.price_eur, pred)
+            cached[row.id] = {
+                **pred,
+                "deal_verdict": verdict,
+                "deal_score": score,
+            }
+
+    return [_listing_dict(row, cached.get(row.id)) for row in rows]
 
 
 @router.get("")

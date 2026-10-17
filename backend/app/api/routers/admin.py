@@ -93,3 +93,14 @@ def retrain_model(
     """Queue a model training run; the worker processes it in the background."""
     jobs.enqueue({"type": "train_model", "requested_by": user.id})
     return {"queued": True, "job": "train_model"}
+
+
+@router.post("/predictions/recompute")
+@limiter.limit("5/minute")
+def recompute_predictions(
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Queue a prediction backfill (normally runs automatically)."""
+    jobs.enqueue({"type": "backfill_predictions", "requested_by": user.id})
+    return {"queued": True, "job": "backfill_predictions"}

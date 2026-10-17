@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import Optional
 
-from sqlalchemy import Column, JSON
+from sqlalchemy import Column, JSON, UniqueConstraint
 from sqlmodel import Field, SQLModel
 
 
@@ -87,3 +87,19 @@ class ModelVersion(SQLModel, table=True):
     metrics: Optional[dict] = Field(default=None, sa_column=Column(JSON))
     is_active: bool = Field(default=False)
     trained_at: datetime = Field(default_factory=utcnow)
+
+
+class Prediction(SQLModel, table=True):
+    """Cached fair-price prediction for one listing by one model version."""
+
+    __table_args__ = (UniqueConstraint("listing_id", "model_version_id"),)
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    listing_id: int = Field(foreign_key="listing.id", index=True)
+    model_version_id: int = Field(foreign_key="modelversion.id", index=True)
+    fair_price_eur: float
+    interval_low_eur: float
+    interval_high_eur: float
+    deal_verdict: Optional[str] = Field(default=None)  # cheap / fair / overpriced
+    deal_score: Optional[float] = Field(default=None)  # > 0 means cheaper than fair
+    computed_at: datetime = Field(default_factory=utcnow)

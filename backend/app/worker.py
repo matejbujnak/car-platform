@@ -13,13 +13,16 @@ from requests.exceptions import RequestException
 from sqlmodel import Session, select
 
 from app import config
-from app.db.models import ScrapeRun, utcnow
+from app.db.models import Listing, ModelVersion, Prediction, ScrapeRun, utcnow
 from app.db.session import engine
+from app.ml.predict import CAR_FIELDS, active_model, deal_verdict, load_artifact, predict_prices
 from app.scraping import autobazar, jobs, store
 
 log = logging.getLogger("worker")
 
 POLL_SECONDS = 10
+PREDICTION_BATCH = 500
+PREDICTION_SWEEP_SECONDS = 15 * 60
 
 
 # --- scheduling -------------------------------------------------------------
@@ -208,6 +211,60 @@ def run_full_scrape(job: dict) -> None:
                  run.listings_new, run.listings_updated)
 
 
+def run_prediction_backfill() -> None:
+    """Compute cached predictions for listings that do not have them yet.
+
+    Runs automatically after every scrape run and every training run, plus as a
+    periodic sweep, so the prediction cache is always up to date.
+    """
+    with Session(engine) as session:
+        mv = active_model(session)
+        if mv is None:
+            log.info("No trained model - skipping prediction backfill")
+            return
+        artifact = load_artifact(mv.artifact_path)
+
+        created = 0
+        while True:
+            rows = session.exec(
+                select(Listing)
+                .where(
+                    Listing.id.not_in(
+                        select(Prediction.listing_id).where(
+                            Prediction.model_version_id == mv.id
+                        )
+                    )
+                )
+                .order_by(Listing.id)
+                .limit(PREDICTION_BATCH)
+            ).all()
+            if not rows:
+                break
+
+            predictions = predict_prices(
+                artifact, [{k: getattr(r, k) for k in CAR_FIELDS} for r in rows]
+            )
+            for row, pred in zip(rows, predictions):
+                verdict = score = None
+                if row.price_eur:
+                    verdict, score = deal_verdict(row.price_eur, pred)
+                session.add(
+                    Prediction(
+                        listing_id=row.id,
+                        model_version_id=mv.id,
+                        fair_price_eur=pred["fair_price_eur"],
+                        interval_low_eur=pred["interval_low_eur"],
+                        interval_high_eur=pred["interval_high_eur"],
+                        deal_verdict=verdict,
+                        deal_score=score,
+                    )
+                )
+            session.commit()
+            created += len(rows)
+
+    log.info("Prediction backfill finished: %s rows for model '%s'", created, mv.name)
+
+
 def run_training_job() -> None:
     """Train a new model version and register it (see app/ml/train.py)."""
     from app.ml import train as ml_train
@@ -225,10 +282,15 @@ def dispatch(job: dict) -> None:
     kind = job.get("type")
     if kind == "scrape":
         run_quick_scrape(job)
+        jobs.enqueue({"type": "backfill_predictions"})
     elif kind == "scrape_full":
         run_full_scrape(job)
+        jobs.enqueue({"type": "backfill_predictions"})
     elif kind == "train_model":
         run_training_job()
+        jobs.enqueue({"type": "backfill_predictions"})
+    elif kind == "backfill_predictions":
+        run_prediction_backfill()
     else:
         log.warning("Unknown job type: %s", kind)
 
@@ -257,12 +319,23 @@ def main() -> None:
             log.info("Found interrupted full crawl (run %s) - resuming", interrupted.id)
             jobs.enqueue({"type": "scrape_full", "resume": True})
 
+    last_sweep = 0.0
     while True:
         try:
             with Session(engine) as session:
                 if _full_scrape_pending(session, datetime.now(ZoneInfo(config.SCHEDULE_TZ))):
                     log.info("Queueing the scheduled full crawl")
                     jobs.enqueue({"type": "scrape_full", "scheduled": True})
+
+            # Periodic sweep: make sure no listing is left without a prediction
+            # (covers crashes between scrape/training and backfill). Skipped when
+            # the queue is busy, so jobs do not pile up during a long crawl.
+            if (
+                time.monotonic() - last_sweep > PREDICTION_SWEEP_SECONDS
+                and jobs.client().llen(jobs.QUEUE) == 0
+            ):
+                last_sweep = time.monotonic()
+                jobs.enqueue({"type": "backfill_predictions"})
 
             job = jobs.dequeue(timeout=POLL_SECONDS)
             if job is None:
