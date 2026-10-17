@@ -1,6 +1,13 @@
 """Application settings loaded from environment variables."""
 
+import logging
 import os
+import secrets
+
+log = logging.getLogger(__name__)
+
+# "development" or "production". Production refuses to start without secrets.
+APP_ENV = os.getenv("APP_ENV", "development")
 
 
 def _normalize_db_url(url: str) -> str:
@@ -21,3 +28,37 @@ REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 # Admin account seeded on first start. When unset, no admin is created.
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
+
+
+def _secret_key() -> str:
+    key = os.getenv("SECRET_KEY", "")
+    if key:
+        return key
+    if APP_ENV == "production":
+        raise RuntimeError("SECRET_KEY must be set when APP_ENV=production")
+    log.warning("SECRET_KEY is not set - using a temporary development key")
+    return secrets.token_hex(32)
+
+
+SECRET_KEY = _secret_key()
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
+ALLOWED_ORIGINS = [
+    origin.strip()
+    for origin in os.getenv("ALLOWED_ORIGINS", "http://localhost:5173").split(",")
+    if origin.strip()
+]
+
+
+def check_production_settings() -> None:
+    """Refuse to run in production when required secrets are missing."""
+    if APP_ENV != "production":
+        return
+    missing = [
+        name
+        for name, value in (("SECRET_KEY", os.getenv("SECRET_KEY", "")), ("ADMIN_PASSWORD", ADMIN_PASSWORD))
+        if not value
+    ]
+    if missing:
+        raise RuntimeError(
+            f"Missing required settings for production: {', '.join(missing)}"
+        )

@@ -4,3 +4,6 @@ sqlmodel==0.0.22
 psycopg[binary]==3.2.3
 alembic==1.14.0
 bcrypt==4.2.1
+pyjwt==2.10.1
+python-multipart==0.0.20
+slowapi==0.1.9

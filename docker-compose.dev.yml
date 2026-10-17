@@ -23,6 +23,8 @@ services:
       # Dev-only credentials for the local stack.
       - ADMIN_USERNAME=admin
       - ADMIN_PASSWORD=dev-admin-password
+      - SECRET_KEY=dev-secret-key-for-local-use-only
+      - APP_ENV=development
     volumes:
       - ./backend:/app
     ports:
