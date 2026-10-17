@@ -6,8 +6,8 @@ from sqlmodel import Session, select
 from app import config
 from app.scraping import jobs
 from app.core.auth import get_current_user, require_roles
+from app.db.models import ModelVersion, Role, ScrapeRun, User
 from app.db.session import get_session
-from app.db.models import Role, ScrapeRun, User
 from app.core.rate_limit import limiter
 
 router = APIRouter(
@@ -65,3 +65,31 @@ def scrape_runs(session: Session = Depends(get_session)) -> list[dict]:
         }
         for run in runs
     ]
+
+
+@router.get("/models")
+def models(session: Session = Depends(get_session)) -> list[dict]:
+    """Registered model versions with their metrics (newest first)."""
+    rows = session.exec(select(ModelVersion).order_by(ModelVersion.id.desc()).limit(20)).all()
+    return [
+        {
+            "id": row.id,
+            "name": row.name,
+            "dataset_rows": row.dataset_rows,
+            "metrics": row.metrics,
+            "is_active": row.is_active,
+            "trained_at": row.trained_at,
+        }
+        for row in rows
+    ]
+
+
+@router.post("/models/retrain")
+@limiter.limit("5/minute")
+def retrain_model(
+    request: Request,
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Queue a model training run; the worker processes it in the background."""
+    jobs.enqueue({"type": "train_model", "requested_by": user.id})
+    return {"queued": True, "job": "train_model"}

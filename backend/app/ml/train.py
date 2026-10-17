@@ -39,7 +39,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from app import config
 from app.db.models import ModelVersion
 from app.db.session import engine
-from app.ml.features import CATEGORICAL, NUMERIC, add_features, simplify_gearbox
+from app.ml.features import CATEGORICAL, CURRENT_YEAR, NUMERIC, add_features, simplify_gearbox
 from sqlmodel import Session, select
 
 RANDOM_STATE = 42
@@ -47,7 +47,7 @@ TARGET = "price_eur"
 
 # Cleaning bounds (bad rows poison the model).
 PRICE_MIN, PRICE_MAX = 500, 200_000
-YEAR_MIN, YEAR_MAX = 1990, datetime.now(timezone.utc).year
+YEAR_MIN, YEAR_MAX = 1990, CURRENT_YEAR
 MILEAGE_MAX = 500_000
 
 # Split conformal: interval covers ~80% of the residuals on held-out data.

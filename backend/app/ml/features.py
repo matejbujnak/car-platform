@@ -1,7 +1,11 @@
 """Feature engineering for the fair-price model."""
 
+from datetime import datetime, timezone
+
 import numpy as np
 import pandas as pd
+
+CURRENT_YEAR = datetime.now(timezone.utc).year
 
 # Numeric features (built from the raw listing columns).
 NUMERIC = [

@@ -208,12 +208,27 @@ def run_full_scrape(job: dict) -> None:
                  run.listings_new, run.listings_updated)
 
 
+def run_training_job() -> None:
+    """Train a new model version and register it (see app/ml/train.py)."""
+    from app.ml import train as ml_train
+
+    log.info("Model training started")
+    try:
+        ml_train.train()
+        log.info("Model training finished")
+    except Exception as exc:  # noqa: BLE001 - a failed run must not kill the worker
+        log.exception("Model training failed")
+        raise RuntimeError(f"training failed: {exc}") from exc
+
+
 def dispatch(job: dict) -> None:
     kind = job.get("type")
     if kind == "scrape":
         run_quick_scrape(job)
     elif kind == "scrape_full":
         run_full_scrape(job)
+    elif kind == "train_model":
+        run_training_job()
     else:
         log.warning("Unknown job type: %s", kind)
 
@@ -226,6 +241,22 @@ def main() -> None:
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
     log.info("Worker started, waiting for jobs...")
+
+    # A crawl interrupted by a restart should continue from its checkpoint
+    # instead of waiting for the next scheduled run.
+    with Session(engine) as session:
+        interrupted = session.exec(
+            select(ScrapeRun)
+            .where(
+                ScrapeRun.kind == ScrapeRun.Kind.full,
+                ScrapeRun.status == ScrapeRun.Status.running,
+            )
+            .limit(1)
+        ).first()
+        if interrupted is not None:
+            log.info("Found interrupted full crawl (run %s) - resuming", interrupted.id)
+            jobs.enqueue({"type": "scrape_full", "resume": True})
+
     while True:
         try:
             with Session(engine) as session:

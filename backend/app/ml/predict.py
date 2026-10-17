@@ -1,12 +1,19 @@
-"""Prediction helpers: fair price + interval for a single car."""
+"""Prediction helpers: fair price + interval for one car or a batch."""
 
 from functools import lru_cache
 
 import joblib
 import pandas as pd
+from sqlmodel import Session, select
 
-from app.ml.features import CATEGORICAL, NUMERIC, add_features
-from app.ml.train import YEAR_MAX
+from app.db.models import ModelVersion
+from app.ml.features import CATEGORICAL, CURRENT_YEAR, NUMERIC, add_features
+
+# Raw listing fields a prediction needs.
+CAR_FIELDS = [
+    "make", "model", "year", "mileage_km", "fuel", "power_kw",
+    "engine_cc", "gearbox", "body", "drive", "seller_type",
+]
 
 
 @lru_cache(maxsize=4)
@@ -15,21 +22,36 @@ def load_artifact(path: str) -> dict:
     return joblib.load(path)
 
 
-def predict_price(artifact: dict, car: dict) -> dict:
-    """Fair price and its prediction interval for one car (raw listing fields).
+def active_artifact(session: Session) -> dict | None:
+    """The artifact of the active model version, or None when untrained."""
+    mv = session.exec(
+        select(ModelVersion)
+        .where(ModelVersion.is_active == True)  # noqa: E712
+        .order_by(ModelVersion.id.desc())
+        .limit(1)
+    ).first()
+    if mv is None:
+        return None
+    return load_artifact(mv.artifact_path)
 
-    `car` needs: make, model, year, mileage_km, fuel, power_kw, engine_cc,
-    gearbox, body, drive, seller_type.
-    """
-    frame = add_features(pd.DataFrame([car]), YEAR_MAX)
-    price = float(artifact["pipeline"].predict(frame[CATEGORICAL + NUMERIC])[0])
+
+def predict_prices(artifact: dict, cars: list[dict]) -> list[dict]:
+    """Fair price and prediction interval for each car (raw listing fields)."""
+    frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
+    prices = artifact["pipeline"].predict(frame[CATEGORICAL + NUMERIC])
     q = float(artifact["conformal_q"])
-    return {
-        "fair_price_eur": round(price),
-        "interval_low_eur": round(max(price - q, 0)),
-        "interval_high_eur": round(price + q),
-        "model_name": artifact["model_name"],
-    }
+    return [
+        {
+            "fair_price_eur": round(float(price)),
+            "interval_low_eur": round(max(float(price) - q, 0)),
+            "interval_high_eur": round(float(price) + q),
+        }
+        for price in prices
+    ]
+
+
+def predict_price(artifact: dict, car: dict) -> dict:
+    return predict_prices(artifact, [car])[0]
 
 
 def deal_verdict(price_eur: float, prediction: dict) -> tuple[str, float]:
