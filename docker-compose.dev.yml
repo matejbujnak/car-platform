@@ -33,6 +33,25 @@ services:
       postgres_db:
         condition: service_healthy
 
+  worker:
+    build: ./backend
+    container_name: car-platform-worker-dev
+    restart: unless-stopped
+    # Same image as the API, different command: processes background jobs.
+    command: python -m app.worker
+    environment:
+      - DATABASE_URL=postgresql://car_platform:car_platform@postgres_db:5432/car_platform_dev
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=dev-secret-key-for-local-use-only
+      - APP_ENV=development
+    volumes:
+      - ./backend:/app
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
   postgres_db:
     image: postgres:16-alpine
     container_name: car-platform-postgres-dev

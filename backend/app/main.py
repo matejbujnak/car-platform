@@ -13,7 +13,7 @@ from sqlmodel import Session
 from app import config
 from app.db import engine
 from app.rate_limit import limiter
-from app.routers import auth, health
+from app.routers import admin, auth, health, listings
 from app.seed import seed_admin
 
 
@@ -46,3 +46,5 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(listings.router)
+app.include_router(admin.router)

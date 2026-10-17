@@ -48,6 +48,15 @@ ALLOWED_ORIGINS = [
     if origin.strip()
 ]
 
+# Scraper politeness (the source site must not be hammered).
+SCRAPE_MAX_PER_HOUR = int(os.getenv("SCRAPE_MAX_PER_HOUR", "30"))
+SCRAPE_MAX_PAGES_PER_RUN = int(os.getenv("SCRAPE_MAX_PAGES_PER_RUN", "5"))
+SCRAPE_MIN_DELAY_SECONDS = float(os.getenv("SCRAPE_MIN_DELAY_SECONDS", "7"))
+SCRAPE_MAX_DELAY_SECONDS = float(os.getenv("SCRAPE_MAX_DELAY_SECONDS", "14"))
+# Only scrape during this hour window (UTC). Start == end disables the window.
+SCRAPE_WINDOW_START_HOUR = int(os.getenv("SCRAPE_WINDOW_START_HOUR", "0"))
+SCRAPE_WINDOW_END_HOUR = int(os.getenv("SCRAPE_WINDOW_END_HOUR", "0"))
+
 
 def check_production_settings() -> None:
     """Refuse to run in production when required secrets are missing."""

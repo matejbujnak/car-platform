@@ -32,13 +32,23 @@ BACKEND_PORT=8001 POSTGRES_PORT=5433 REDIS_PORT=6380 \
   docker compose -f docker-compose.dev.yml up
 ```
 
+## Scraping
+
+The scraper runs in a separate worker container and consumes jobs from a queue.
+It is deliberately slow and polite (robots.txt, request limits, delays) to avoid
+overloading the source site. As admin, queue a run via the API:
+
+```bash
+curl -X POST "http://localhost:8000/api/admin/scrape?pages=2" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
 ## Project structure
 
 ```
-backend/    FastAPI application
+backend/    FastAPI app + background workers (same image, different command)
 frontend/   React SPA (Vite)
 ml/         model training + evaluation
-worker/     background jobs (scraper, ML tasks)
 deploy/     deployment configs and scripts
 ```
 
