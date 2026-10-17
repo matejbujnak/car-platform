@@ -9,3 +9,7 @@ python-multipart==0.0.20
 slowapi==0.1.9
 requests==2.32.3
 redis==5.2.1
+pandas==2.2.3
+scikit-learn==1.5.2
+lightgbm==4.5.0
+joblib==1.4.2

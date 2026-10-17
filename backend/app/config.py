@@ -25,6 +25,9 @@ DATABASE_URL = _normalize_db_url(
 )
 REDIS_URL = os.getenv("REDIS_URL", "redis://redis:6379/0")
 
+# Where trained model artifacts are stored (shared volume in deployment).
+MODEL_DIR = os.getenv("MODEL_DIR", "/models")
+
 # Admin account seeded on first start. When unset, no admin is created.
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "")
