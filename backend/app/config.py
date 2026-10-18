@@ -52,10 +52,12 @@ ALLOWED_ORIGINS = [
 ]
 
 # Scraper politeness (the source site must not be hammered).
-SCRAPE_MAX_PER_HOUR = int(os.getenv("SCRAPE_MAX_PER_HOUR", "300"))
+# With these delays the crawler does ~350-450 requests/hour - a full catalogue
+# crawl then takes roughly a working day instead of two.
+SCRAPE_MAX_PER_HOUR = int(os.getenv("SCRAPE_MAX_PER_HOUR", "500"))
 SCRAPE_QUICK_MAX_PAGES = int(os.getenv("SCRAPE_QUICK_MAX_PAGES", "5"))
-SCRAPE_MIN_DELAY_SECONDS = float(os.getenv("SCRAPE_MIN_DELAY_SECONDS", "7"))
-SCRAPE_MAX_DELAY_SECONDS = float(os.getenv("SCRAPE_MAX_DELAY_SECONDS", "14"))
+SCRAPE_MIN_DELAY_SECONDS = float(os.getenv("SCRAPE_MIN_DELAY_SECONDS", "5"))
+SCRAPE_MAX_DELAY_SECONDS = float(os.getenv("SCRAPE_MAX_DELAY_SECONDS", "9"))
 # Only scrape during this hour window (e.g. 1-5 = night hours).
 # Start == end disables the window.
 SCRAPE_WINDOW_START_HOUR = int(os.getenv("SCRAPE_WINDOW_START_HOUR", "0"))

@@ -155,7 +155,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <th className="pb-2 font-medium">Status</th>
               <th className="pb-2 font-medium">New</th>
               <th className="pb-2 font-medium">Updated</th>
-              <th className="pb-2 font-medium">Segment</th>
+              <th className="pb-2 font-medium">Progress</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
@@ -178,7 +178,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 </td>
                 <td>{r.listings_new}</td>
                 <td>{r.listings_updated}</td>
-                <td className="text-slate-500">{r.current_segment ?? "—"}</td>
+                <td className="text-slate-500">
+                  {r.current_segment
+                    ? `${r.current_segment}${r.cursor != null ? ` · #${r.cursor + 1}` : ""}`
+                    : "—"}
+                </td>
               </tr>
             ))}
           </tbody>

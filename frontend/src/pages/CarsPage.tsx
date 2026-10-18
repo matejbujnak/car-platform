@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { fetchListings, fetchStats, type Listing, type Stats } from "../api";
 import DealBadge from "../components/DealBadge";
 import { formatKm, formatPrice } from "../components/format";
@@ -93,16 +93,35 @@ export default function CarsPage() {
         </span>
       </section>
 
-      {/* Listing rows */}
-      {loading ? (
-        <p className="mt-12 text-center text-sm text-slate-500">Loading…</p>
-      ) : (
-        <section className="mt-3 divide-y divide-slate-100 border border-slate-200 bg-white">
-          {items.map((car) => (
-            <Row key={car.id} car={car} />
-          ))}
-        </section>
-      )}
+      {/* Listing table */}
+      <section className="mt-3 overflow-x-auto border border-slate-200 bg-white">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
+              <th className="px-4 py-2 font-medium">Car</th>
+              <th className="px-3 py-2 text-right font-medium">Year</th>
+              <th className="px-3 py-2 text-right font-medium">Mileage</th>
+              <th className="px-3 py-2 font-medium">Fuel</th>
+              <th className="px-3 py-2 text-right font-medium">Power</th>
+              <th className="px-3 py-2 text-right font-medium">Price</th>
+              <th className="px-3 py-2 text-right font-medium">Fair price</th>
+              <th className="px-3 py-2 font-medium">Verdict</th>
+              <th className="px-3 py-2" />
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-100">
+            {loading ? (
+              <tr>
+                <td colSpan={9} className="px-4 py-10 text-center text-slate-500">
+                  Loading…
+                </td>
+              </tr>
+            ) : (
+              items.map((car) => <Row key={car.id} car={car} />)
+            )}
+          </tbody>
+        </table>
+      </section>
 
       {/* Pagination */}
       <section className="mt-4 flex items-center justify-center gap-4 text-sm">
@@ -148,52 +167,42 @@ function Stat({
 }
 
 function Row({ car }: { car: Listing }) {
-  const score = car.deal_score;
+  const navigate = useNavigate();
   return (
-    <Link
-      to={`/car/${car.id}`}
-      className="flex items-center gap-4 px-4 py-3 hover:bg-slate-50"
+    <tr
+      onClick={() => navigate(`/car/${car.id}`)}
+      className="cursor-pointer hover:bg-slate-50"
     >
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
-          <h3 className="truncate text-sm font-medium text-blue-700">
-            {car.title}
-          </h3>
-          <DealBadge verdict={car.deal_verdict} />
-        </div>
-        <p className="mt-0.5 text-xs text-slate-500">
-          {car.year} · {formatKm(car.mileage_km)} · {car.fuel ?? "—"} ·{" "}
-          {car.power_kw ? `${car.power_kw} kW` : "—"} · {car.gearbox ?? "—"}
-        </p>
-      </div>
-      <div className="w-24 text-right text-xs text-slate-500">
-        {score != null ? (
-          <span
-            className={
-              score > 0.05
-                ? "font-medium text-green-700"
-                : score < -0.05
-                  ? "font-medium text-red-700"
-                  : ""
-            }
-          >
-            {score > 0 ? "−" : "+"}
-            {Math.abs(score * 100).toFixed(0)}% vs fair
-          </span>
-        ) : (
-          ""
-        )}
-      </div>
-      <div className="w-32 text-right">
-        <div className="text-sm font-semibold text-slate-900">
-          {formatPrice(car.price_eur)}
-        </div>
-        {car.fair_price_eur != null && (
-          <div className="text-xs text-slate-400">
-            fair {formatPrice(car.fair_price_eur)}
-          </div>
-        )}
-      </div>
-    </Link>
+      <td className="px-4 py-2 text-blue-700">{car.title}</td>
+      <td className="px-3 py-2 text-right text-slate-700">{car.year}</td>
+      <td className="px-3 py-2 text-right text-slate-700">
+        {formatKm(car.mileage_km)}
+      </td>
+      <td className="px-3 py-2 text-slate-700">{car.fuel ?? "—"}</td>
+      <td className="px-3 py-2 text-right text-slate-700">
+        {car.power_kw ? `${car.power_kw} kW` : "—"}
+      </td>
+      <td className="px-3 py-2 text-right font-semibold text-slate-900">
+        {formatPrice(car.price_eur)}
+      </td>
+      <td className="px-3 py-2 text-right text-slate-500">
+        {formatPrice(car.fair_price_eur)}
+      </td>
+      <td className="px-3 py-2">
+        <DealBadge verdict={car.deal_verdict} />
+      </td>
+      <td className="px-3 py-2 text-right">
+        <a
+          href={car.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Open original listing"
+          onClick={(e) => e.stopPropagation()}
+          className="text-slate-400 hover:text-blue-700"
+        >
+          ↗
+        </a>
+      </td>
+    </tr>
   );
 }

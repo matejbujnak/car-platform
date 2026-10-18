@@ -52,6 +52,7 @@ export interface ScrapeRun {
   finished_at: string | null;
   status: "running" | "success" | "failed";
   current_segment: string | null;
+  cursor: number | null;
   listings_new: number;
   listings_updated: number;
   error: string | null;
