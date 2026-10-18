@@ -1,12 +1,11 @@
-import { VERDICT_STYLES } from "./format";
+const VERDICT_STYLES: Record<string, { label: string; cls: string }> = {
+  cheap: { label: "Good deal", cls: "text-emerald-600" },
+  fair: { label: "Fair price", cls: "text-slate-400" },
+  overpriced: { label: "Overpriced", cls: "text-red-500" },
+  suspicious: { label: "Check price", cls: "text-amber-600" },
+};
 
 export default function DealBadge({ verdict }: { verdict?: string | null }) {
   const style = VERDICT_STYLES[verdict ?? ""] ?? VERDICT_STYLES.fair;
-  return (
-    <span
-      className={`inline-block whitespace-nowrap rounded-sm px-2 py-0.5 text-xs font-medium ${style.cls}`}
-    >
-      {style.label}
-    </span>
-  );
+  return <span className={`text-sm font-medium ${style.cls}`}>{style.label}</span>;
 }

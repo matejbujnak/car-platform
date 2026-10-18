@@ -1,33 +1,42 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 
 export default function Header() {
-  const link = ({ isActive }: { isActive: boolean }) =>
-    `px-3 py-2 text-sm ${
-      isActive
-        ? "border-b-2 border-blue-700 font-medium text-blue-700"
-        : "border-b-2 border-transparent text-slate-600 hover:text-slate-900"
-    }`;
-
   return (
-    <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-4">
-        <div className="py-3">
-          <span className="text-lg font-semibold text-slate-900">
-            Car Market Analyzer
-          </span>
-        </div>
-        <nav className="flex items-center">
-          <NavLink to="/" className={link} end>
-            Cars
-          </NavLink>
-          <NavLink to="/calculator" className={link}>
-            Price calculator
-          </NavLink>
-          <NavLink to="/admin" className={link}>
-            Admin
-          </NavLink>
-        </nav>
+    <header className="border-b border-slate-200">
+      <div className="mx-auto flex max-w-7xl items-center gap-1 px-6 py-3">
+        <Link to="/" className="mr-4 text-lg font-bold tracking-tight">
+          Car<span className="text-emerald-600">Market</span>Analyzer
+        </Link>
+        <NavItem to="/" label="Listings" end />
+        <NavItem to="/calculator" label="Price calculator" />
+        <NavItem to="/admin" label="Admin" />
       </div>
     </header>
+  );
+}
+
+function NavItem({
+  to,
+  label,
+  end,
+}: {
+  to: string;
+  label: string;
+  end?: boolean;
+}) {
+  return (
+    <NavLink
+      to={to}
+      end={end}
+      className={({ isActive }) =>
+        `rounded px-3 py-1.5 text-sm ${
+          isActive
+            ? "bg-slate-900 font-medium text-white"
+            : "text-slate-600 hover:text-slate-900"
+        }`
+      }
+    >
+      {label}
+    </NavLink>
   );
 }

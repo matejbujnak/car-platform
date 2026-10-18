@@ -13,6 +13,9 @@ import {
 } from "../api";
 import { formatPrice } from "../components/format";
 
+const inputCls =
+  "w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm focus:border-slate-400 focus:outline-none";
+
 export default function AdminPage() {
   const [token, setToken] = useState(localStorage.getItem("token"));
 
@@ -35,29 +38,29 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
   }
 
   return (
-    <div className="mx-auto mt-12 max-w-sm">
-      <h1 className="text-xl font-semibold text-slate-900">Admin login</h1>
-      <form onSubmit={submit} className="mt-3 space-y-4 border border-slate-200 bg-white px-6 py-5">
+    <div className="mx-auto mt-16 max-w-sm">
+      <h1 className="text-2xl font-bold">Admin</h1>
+      <form onSubmit={submit} className="mt-4 space-y-4">
         <input
+          className={inputCls}
           value={username}
           onChange={(e) => setUsername(e.target.value)}
           placeholder="Username"
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
         />
         <input
+          className={inputCls}
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder="Password"
-          className="w-full rounded border border-slate-300 px-3 py-2 text-sm focus:border-blue-600 focus:outline-none"
         />
         <button
           type="submit"
-          className="w-full rounded bg-blue-700 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
+          className="w-full rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
         >
           Sign in
         </button>
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-500">{error}</p>}
       </form>
     </div>
   );
@@ -83,16 +86,27 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     }
   }
 
+  const running = runs.find((r) => r.status === "running");
+
   return (
-    <div className="mt-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-slate-900">Admin</h1>
-        <button
-          onClick={onLogout}
-          className="rounded border border-slate-300 bg-white px-4 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-        >
-          Sign out
-        </button>
+    <div className="mt-8">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold">Admin</h1>
+        <div className="flex items-center gap-3 text-sm">
+          {running && (
+            <span className="text-slate-500">
+              Scraping…
+              {running.current_segment ? ` ${running.current_segment}` : ""}
+              {running.cursor != null ? ` · #${running.cursor + 1}` : ""}
+            </span>
+          )}
+          <button
+            onClick={onLogout}
+            className="rounded border border-slate-200 px-3 py-1.5 text-slate-600 hover:text-slate-900"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Actions */}
@@ -102,41 +116,47 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <Button label="Retrain model" onClick={() => action("Retraining", triggerRetrain)} />
         <Button label="Recompute predictions" onClick={() => action("Recompute", triggerRecompute)} />
         <Button label="Refresh" onClick={refresh} />
-        {message && <span className="text-sm text-slate-500">{message}</span>}
+        {message && <span className="text-sm text-slate-400">{message}</span>}
       </section>
 
       {/* Models */}
-      <section className="mt-6 border border-slate-200 bg-white px-6 py-5">
-        <h2 className="text-sm font-semibold text-slate-900">Model versions</h2>
-        <table className="mt-3 w-full text-sm">
+      <section className="mt-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+          Model versions
+        </h2>
+        <table className="mt-3 w-full text-[15px]">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-              <th className="pb-2 font-medium">Model</th>
-              <th className="pb-2 font-medium">Rows</th>
-              <th className="pb-2 font-medium">MAE</th>
-              <th className="pb-2 font-medium">R²</th>
-              <th className="pb-2 font-medium">Interval</th>
-              <th className="pb-2 font-medium">Status</th>
+            <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+              <th className="py-2.5 pr-4">Model</th>
+              <th className="px-3 py-2.5 text-right">Rows</th>
+              <th className="px-3 py-2.5 text-right">MAE</th>
+              <th className="px-3 py-2.5 text-right">R²</th>
+              <th className="px-3 py-2.5 text-right">Interval</th>
+              <th className="px-3 py-2.5">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody>
             {models.map((m) => (
-              <tr key={m.id}>
-                <td className="py-2 font-medium text-slate-800">{m.name}</td>
-                <td>{m.dataset_rows.toLocaleString("en-US")}</td>
-                <td>{m.metrics ? formatPrice(m.metrics.mae) : "—"}</td>
-                <td>{m.metrics?.r2 ?? "—"}</td>
-                <td>{m.metrics ? `± ${formatPrice(m.metrics.conformal_q)}` : "—"}</td>
-                <td>
-                  <span
-                    className={`rounded-sm px-2 py-0.5 text-xs ${
-                      m.is_active
-                        ? "bg-green-100 text-green-800"
-                        : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {m.is_active ? "active" : "archived"}
-                  </span>
+              <tr key={m.id} className="border-b border-slate-100">
+                <td className="py-2.5 pr-4 font-medium">{m.name}</td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {m.dataset_rows.toLocaleString("en-US")}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {m.metrics ? formatPrice(m.metrics.mae) : "—"}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {m.metrics?.r2 ?? "—"}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {m.metrics ? `± ${formatPrice(m.metrics.conformal_q)}` : "—"}
+                </td>
+                <td
+                  className={`px-3 py-2.5 text-sm font-medium ${
+                    m.is_active ? "text-emerald-600" : "text-slate-400"
+                  }`}
+                >
+                  {m.is_active ? "active" : "archived"}
                 </td>
               </tr>
             ))}
@@ -145,40 +165,46 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
       </section>
 
       {/* Scrape runs */}
-      <section className="mt-6 border border-slate-200 bg-white px-6 py-5">
-        <h2 className="text-sm font-semibold text-slate-900">Scrape runs</h2>
-        <table className="mt-3 w-full text-sm">
+      <section className="mt-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+          Scrape runs
+        </h2>
+        <table className="mt-3 w-full text-[15px]">
           <thead>
-            <tr className="border-b border-slate-200 text-left text-xs text-slate-500">
-              <th className="pb-2 font-medium">Started</th>
-              <th className="pb-2 font-medium">Kind</th>
-              <th className="pb-2 font-medium">Status</th>
-              <th className="pb-2 font-medium">New</th>
-              <th className="pb-2 font-medium">Updated</th>
-              <th className="pb-2 font-medium">Progress</th>
+            <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+              <th className="py-2.5 pr-4">Started</th>
+              <th className="px-3 py-2.5">Kind</th>
+              <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5 text-right">New</th>
+              <th className="px-3 py-2.5 text-right">Updated</th>
+              <th className="px-3 py-2.5">Progress</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-100">
+          <tbody>
             {runs.map((r) => (
-              <tr key={r.id}>
-                <td className="py-2">{new Date(r.started_at).toLocaleString()}</td>
-                <td>{r.kind}</td>
-                <td>
-                  <span
-                    className={`rounded-sm px-2 py-0.5 text-xs ${
-                      r.status === "success"
-                        ? "bg-green-100 text-green-800"
-                        : r.status === "failed"
-                          ? "bg-red-100 text-red-700"
-                          : "bg-amber-100 text-amber-800"
-                    }`}
-                  >
-                    {r.status}
-                  </span>
+              <tr key={r.id} className="border-b border-slate-100">
+                <td className="py-2.5 pr-4 text-slate-600">
+                  {new Date(r.started_at).toLocaleString()}
                 </td>
-                <td>{r.listings_new}</td>
-                <td>{r.listings_updated}</td>
-                <td className="text-slate-500">
+                <td className="px-3 py-2.5 text-slate-600">{r.kind}</td>
+                <td
+                  className={`px-3 py-2.5 text-sm font-medium ${
+                    r.status === "success"
+                      ? "text-emerald-600"
+                      : r.status === "failed"
+                        ? "text-red-500"
+                        : "text-amber-600"
+                  }`}
+                >
+                  {r.status}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {r.listings_new}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {r.listings_updated}
+                </td>
+                <td className="px-3 py-2.5 text-slate-400">
                   {r.current_segment
                     ? `${r.current_segment}${r.cursor != null ? ` · #${r.cursor + 1}` : ""}`
                     : "—"}
@@ -206,8 +232,8 @@ function Button({
       onClick={onClick}
       className={`rounded px-4 py-1.5 text-sm font-medium ${
         primary
-          ? "bg-blue-700 text-white hover:bg-blue-800"
-          : "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50"
+          ? "bg-slate-900 text-white hover:bg-slate-800"
+          : "border border-slate-200 text-slate-600 hover:text-slate-900"
       }`}
     >
       {label}

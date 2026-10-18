@@ -8,13 +8,6 @@ export function formatKm(value: number | null | undefined): string {
   return `${value.toLocaleString("en-US")} km`;
 }
 
-export const VERDICT_STYLES: Record<string, { label: string; cls: string }> = {
-  cheap: { label: "Good deal", cls: "bg-green-100 text-green-800" },
-  fair: { label: "Fair price", cls: "bg-slate-100 text-slate-600" },
-  overpriced: { label: "Overpriced", cls: "bg-red-100 text-red-700" },
-  suspicious: { label: "Check price", cls: "bg-amber-100 text-amber-800" },
-};
-
 // Select options: labels are for the user, values are the raw strings the
 // model was trained on (changing a value would skew the prediction).
 export const FUEL_OPTIONS = [
