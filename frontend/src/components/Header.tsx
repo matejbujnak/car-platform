@@ -10,7 +10,7 @@ export default function Header() {
 
   return (
     <header className="border-b border-slate-200 bg-white">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4">
+      <div className="mx-auto flex max-w-6xl items-center justify-between px-4">
         <div className="py-3">
           <span className="text-lg font-semibold text-slate-900">
             Car Market Analyzer

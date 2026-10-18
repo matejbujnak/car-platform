@@ -87,18 +87,12 @@ export function fetchStats(): Promise<Stats> {
   return request("/api/stats");
 }
 
-export function fetchListings(params: {
-  limit?: number;
-  offset?: number;
-  make?: string;
-  sort?: string;
-}): Promise<{ total: number; items: Listing[] }> {
+export function fetchListings(params: Record<string, string | number | undefined>) {
   const qs = new URLSearchParams();
-  if (params.limit) qs.set("limit", String(params.limit));
-  if (params.offset) qs.set("offset", String(params.offset));
-  if (params.make) qs.set("make", params.make);
-  if (params.sort) qs.set("sort", params.sort);
-  return request(`/api/listings?${qs}`);
+  for (const [key, value] of Object.entries(params)) {
+    if (value !== undefined && value !== "") qs.set(key, String(value));
+  }
+  return request<{ total: number; items: Listing[] }>(`/api/listings?${qs}`);
 }
 
 export function fetchListing(id: number): Promise<Listing> {

@@ -97,34 +97,82 @@ def list_listings(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     make: str | None = Query(None),
+    fuel: str | None = Query(None),
+    gearbox: str | None = Query(None),
+    body: str | None = Query(None),
+    drive: str | None = Query(None),
+    price_min: float | None = Query(None, ge=0),
+    price_max: float | None = Query(None, ge=0),
+    year_min: int | None = Query(None, ge=1900),
+    year_max: int | None = Query(None, le=2100),
+    mileage_max: int | None = Query(None, ge=0),
+    verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
     sort: str = Query(
-        "newest", pattern="^(newest|deal_score|price_low|price_high)$"
+        "newest",
+        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|deal_best|deal_worst)$",
     ),
 ) -> dict:
-    """Paginated listing feed with optional filtering and sorting."""
-    query = select(Listing)
-    count_query = select(func.count()).select_from(Listing)
+    """Paginated listing feed with filtering and sorting."""
+    conditions = []
     if make:
-        query = query.where(Listing.make == make)
-        count_query = count_query.where(Listing.make == make)
+        conditions.append(Listing.make == make)
+    if fuel:
+        conditions.append(Listing.fuel == fuel)
+    if gearbox:
+        conditions.append(Listing.gearbox == gearbox)
+    if body:
+        conditions.append(Listing.body == body)
+    if drive:
+        conditions.append(Listing.drive == drive)
+    if price_min is not None:
+        conditions.append(Listing.price_eur >= price_min)
+    if price_max is not None:
+        conditions.append(Listing.price_eur <= price_max)
+    if year_min is not None:
+        conditions.append(Listing.year >= year_min)
+    if year_max is not None:
+        conditions.append(Listing.year <= year_max)
+    if mileage_max is not None:
+        conditions.append(Listing.mileage_km <= mileage_max)
 
     mv = active_model(session)
-    if sort == "deal_score" and mv is not None:
-        # Best deals first (deal_score > 0 means cheaper than fair).
-        query = query.join(
-            Prediction,
-            (Prediction.listing_id == Listing.id)
-            & (Prediction.model_version_id == mv.id),
-        ).order_by(Prediction.deal_score.desc().nulls_last())
-    elif sort == "price_low":
-        query = query.order_by(Listing.price_eur.asc().nulls_last())
-    elif sort == "price_high":
-        query = query.order_by(Listing.price_eur.desc().nulls_last())
+    needs_prediction = verdict is not None or sort.startswith("deal_")
+    if needs_prediction and mv is None:
+        return {"total": 0, "items": []}
+
+    query = select(Listing)
+    count_query = select(func.count()).select_from(Listing)
+    if needs_prediction:
+        pred_join = (Prediction.listing_id == Listing.id) & (
+            Prediction.model_version_id == mv.id
+        )
+        query = query.join(Prediction, pred_join)
+        count_query = count_query.join(Prediction, pred_join)
+        if verdict is not None:
+            conditions.append(Prediction.deal_verdict == verdict)
+
+    for condition in conditions:
+        query = query.where(condition)
+        count_query = count_query.where(condition)
+
+    if sort.startswith("deal_"):
+        order = (
+            Prediction.deal_score.desc().nulls_last()
+            if sort == "deal_best"
+            else Prediction.deal_score.asc().nulls_last()
+        )
     else:
-        query = query.order_by(Listing.id.desc())
+        order = {
+            "newest": Listing.id.desc(),
+            "price_low": Listing.price_eur.asc().nulls_last(),
+            "price_high": Listing.price_eur.desc().nulls_last(),
+            "year_new": Listing.year.desc(),
+            "year_old": Listing.year.asc(),
+            "mileage_low": Listing.mileage_km.asc().nulls_last(),
+        }[sort]
 
     total = session.exec(count_query).one()
-    rows = session.exec(query.offset(offset).limit(limit)).all()
+    rows = session.exec(query.order_by(order).offset(offset).limit(limit)).all()
     return {"total": total, "items": _enriched(rows, session)}
 
 
