@@ -109,7 +109,7 @@ def list_listings(
     verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
     sort: str = Query(
         "newest",
-        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|deal_best|deal_worst)$",
+        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|mileage_high|fair_low|fair_high|deal_best|deal_worst)$",
     ),
 ) -> dict:
     """Paginated listing feed with filtering and sorting."""
@@ -136,7 +136,7 @@ def list_listings(
         conditions.append(Listing.mileage_km <= mileage_max)
 
     mv = active_model(session)
-    needs_prediction = verdict is not None or sort.startswith("deal_")
+    needs_prediction = verdict is not None or sort.startswith(("deal_", "fair_"))
     if needs_prediction and mv is None:
         return {"total": 0, "items": []}
 
@@ -161,6 +161,12 @@ def list_listings(
             if sort == "deal_best"
             else Prediction.deal_score.asc().nulls_last()
         )
+    elif sort.startswith("fair_"):
+        order = (
+            Prediction.fair_price_eur.asc().nulls_last()
+            if sort == "fair_low"
+            else Prediction.fair_price_eur.desc().nulls_last()
+        )
     else:
         order = {
             "newest": Listing.id.desc(),
@@ -169,6 +175,7 @@ def list_listings(
             "year_new": Listing.year.desc(),
             "year_old": Listing.year.asc(),
             "mileage_low": Listing.mileage_km.asc().nulls_last(),
+            "mileage_high": Listing.mileage_km.desc().nulls_last(),
         }[sort]
 
     total = session.exec(count_query).one()

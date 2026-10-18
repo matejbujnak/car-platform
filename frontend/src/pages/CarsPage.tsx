@@ -45,6 +45,31 @@ const EMPTY: Filters = {
   page: 0,
 };
 
+// Column sorting: 1st click -> one direction, 2nd click -> reverse,
+// 3rd click -> sorting off (back to newest first).
+type SortKey = "year" | "km" | "price" | "fair" | "deal";
+
+const SORT_CYCLE: Record<SortKey, [string, string]> = {
+  year: ["year_new", "year_old"],
+  km: ["mileage_low", "mileage_high"],
+  price: ["price_low", "price_high"],
+  fair: ["fair_low", "fair_high"],
+  deal: ["deal_best", "deal_worst"],
+};
+
+const SORT_ARROW: Record<string, string> = {
+  year_new: "↓",
+  year_old: "↑",
+  mileage_low: "↑",
+  mileage_high: "↓",
+  price_low: "↑",
+  price_high: "↓",
+  fair_low: "↑",
+  fair_high: "↓",
+  deal_best: "↓",
+  deal_worst: "↑",
+};
+
 function loadInitialFilters(search: string): Filters {
   const params = Object.fromEntries(new URLSearchParams(search).entries());
   if (Object.keys(params).length > 0) {
@@ -130,6 +155,16 @@ export default function CarsPage() {
     setApplied(next);
     persist(next);
     window.scrollTo({ top: 0 });
+  }
+
+  function onSortClick(key: SortKey) {
+    const [first, second] = SORT_CYCLE[key];
+    const sort =
+      applied.sort === first ? second : applied.sort === second ? "newest" : first;
+    setDraft((f) => ({ ...f, sort }));
+    const next = { ...applied, sort, page: 0 };
+    setApplied(next);
+    persist(next);
   }
 
   const set = (key: keyof Filters, value: string) =>
@@ -241,20 +276,6 @@ export default function CarsPage() {
           <option value="overpriced">Overpriced</option>
           <option value="suspicious">Check price</option>
         </select>
-        <select
-          className={inputCls}
-          value={draft.sort}
-          onChange={(e) => set("sort", e.target.value)}
-        >
-          <option value="newest">Sort: newest</option>
-          <option value="deal_best">Sort: best deals</option>
-          <option value="deal_worst">Sort: worst deals</option>
-          <option value="price_low">Sort: price ↑</option>
-          <option value="price_high">Sort: price ↓</option>
-          <option value="year_new">Sort: year ↓</option>
-          <option value="year_old">Sort: year ↑</option>
-          <option value="mileage_low">Sort: km ↑</option>
-        </select>
         <button
           onClick={applyFilters}
           className="rounded bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
@@ -271,19 +292,19 @@ export default function CarsPage() {
 
       {/* Table */}
       <section className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[900px] text-[15px]">
+        <table className="w-full min-w-[1100px] text-[15px]">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-              <th className="py-2.5 pr-4">Car</th>
-              <th className="px-3 py-2.5 text-right">Year</th>
-              <th className="px-3 py-2.5 text-right">KM</th>
-              <th className="px-3 py-2.5">Fuel</th>
-              <th className="px-3 py-2.5 text-right">KW</th>
-              <th className="px-3 py-2.5">Gearbox</th>
-              <th className="px-3 py-2.5 text-right">Price</th>
-              <th className="px-3 py-2.5 text-right">Fair</th>
-              <th className="px-3 py-2.5">Deal</th>
-              <th className="py-2.5 pl-3" />
+              <th className="py-2.5 pr-6">Car</th>
+              <SortTh label="Year" k="year" sort={applied.sort} onClick={onSortClick} right />
+              <SortTh label="KM" k="km" sort={applied.sort} onClick={onSortClick} right />
+              <th className="px-4 py-2.5">Fuel</th>
+              <th className="px-4 py-2.5 text-right">KW</th>
+              <th className="px-4 py-2.5">Gearbox</th>
+              <SortTh label="Price" k="price" sort={applied.sort} onClick={onSortClick} right />
+              <SortTh label="Fair" k="fair" sort={applied.sort} onClick={onSortClick} right />
+              <SortTh label="Deal" k="deal" sort={applied.sort} onClick={onSortClick} />
+              <th className="py-2.5 pl-6" />
             </tr>
           </thead>
           <tbody>
@@ -324,6 +345,32 @@ export default function CarsPage() {
   );
 }
 
+function SortTh({
+  label,
+  k,
+  sort,
+  onClick,
+  right,
+}: {
+  label: string;
+  k: SortKey;
+  sort: string;
+  onClick: (k: SortKey) => void;
+  right?: boolean;
+}) {
+  const active = Object.values(SORT_CYCLE[k]).includes(sort);
+  return (
+    <th
+      onClick={() => onClick(k)}
+      className={`cursor-pointer select-none whitespace-nowrap px-4 py-2.5 hover:text-slate-700 ${
+        right ? "text-right" : ""
+      }`}
+    >
+      {label} {active && <span className="text-slate-600">{SORT_ARROW[sort]}</span>}
+    </th>
+  );
+}
+
 function Row({ car }: { car: Listing }) {
   const navigate = useNavigate();
   return (
@@ -331,32 +378,38 @@ function Row({ car }: { car: Listing }) {
       onClick={() => navigate(`/car/${car.id}`)}
       className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
     >
-      <td className="py-3 pr-4 font-medium">{car.title}</td>
-      <td className="px-3 py-3 text-right text-slate-600">{car.year}</td>
-      <td className="px-3 py-3 text-right text-slate-600">
+      <td className="py-3 pr-6 font-medium">{car.title}</td>
+      <td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">
+        {car.year}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">
         {formatKm(car.mileage_km)}
       </td>
-      <td className="px-3 py-3 text-slate-600">{car.fuel ?? "—"}</td>
-      <td className="px-3 py-3 text-right text-slate-600">
+      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+        {car.fuel ?? "—"}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">
         {car.power_kw ?? "—"}
       </td>
-      <td className="px-3 py-3 text-slate-600">{car.gearbox ?? "—"}</td>
-      <td className="px-3 py-3 text-right font-semibold">
+      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+        {car.gearbox ?? "—"}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">
         {formatPrice(car.price_eur)}
       </td>
-      <td className="px-3 py-3 text-right text-slate-400">
+      <td className="whitespace-nowrap px-4 py-3 text-right text-slate-400">
         {formatPrice(car.fair_price_eur)}
       </td>
-      <td className="px-3 py-3">
+      <td className="whitespace-nowrap px-4 py-3">
         <DealBadge verdict={car.deal_verdict} />
       </td>
-      <td className="py-3 pl-3 text-right">
+      <td className="whitespace-nowrap py-3 pl-6 text-right">
         <a
           href={car.url}
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="whitespace-nowrap text-sm text-slate-400 hover:text-slate-900"
+          className="text-sm text-slate-400 hover:text-slate-900"
         >
           View listing ↗
         </a>

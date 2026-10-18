@@ -3,7 +3,7 @@ import { Link, NavLink } from "react-router-dom";
 export default function Header() {
   return (
     <header className="border-b border-slate-200">
-      <div className="mx-auto flex max-w-7xl items-center gap-1 px-6 py-3">
+      <div className="mx-auto flex max-w-none items-center gap-1 px-8 py-3">
         <Link to="/" className="mr-4 text-lg font-bold tracking-tight">
           Car<span className="text-emerald-600">Market</span>Analyzer
         </Link>
