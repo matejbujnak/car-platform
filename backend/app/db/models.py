@@ -49,6 +49,9 @@ class Listing(SQLModel, table=True):
     drive: Optional[str] = Field(default=None)
     seller_type: Optional[str] = Field(default=None)
     price_eur: Optional[float] = Field(default=None, index=True)
+    # "active" while the listing exists on the source site, "sold" after it
+    # disappears from a complete crawl (the link would 404).
+    status: str = Field(default="active", index=True)
     first_seen: datetime = Field(default_factory=utcnow)
     last_seen: datetime = Field(default_factory=utcnow)
 
@@ -72,6 +75,9 @@ class ScrapeRun(SQLModel, table=True):
     status: Status = Field(default=Status.running)
     cursor: Optional[int] = Field(default=None)  # resume position in a full crawl
     current_segment: Optional[str] = Field(default=None)  # e.g. "skoda 2021"
+    segments_total: int = Field(default=0)
+    segments_done: int = Field(default=0)
+    segments_failed: int = Field(default=0)
     listings_new: int = Field(default=0)
     listings_updated: int = Field(default=0)
     error: Optional[str] = Field(default=None)

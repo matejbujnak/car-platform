@@ -9,6 +9,7 @@ export interface Listing {
   source_id: string;
   url: string;
   title: string;
+  status: "active" | "sold";
   make: string;
   model: string;
   year: number;
@@ -31,6 +32,7 @@ export interface Listing {
 
 export interface Stats {
   listings_total: number;
+  sold_total: number;
   by_verdict: Record<Verdict, number>;
   makes: string[];
   model_name: string | null;
@@ -53,6 +55,9 @@ export interface ScrapeRun {
   status: "running" | "success" | "failed";
   current_segment: string | null;
   cursor: number | null;
+  segments_total: number;
+  segments_done: number;
+  segments_failed: number;
   listings_new: number;
   listings_updated: number;
   error: string | null;

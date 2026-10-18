@@ -10,6 +10,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from requests.exceptions import RequestException
+from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app import config
@@ -24,44 +25,58 @@ log = logging.getLogger("worker")
 POLL_SECONDS = 10
 PREDICTION_BATCH = 500
 PREDICTION_SWEEP_SECONDS = 15 * 60
+# When this many segments fail in a row, the source site is probably
+# throttling us - continuing would crawl nothing for hours.
+MAX_CONSECUTIVE_FAILURES = 5
+# Minimum gap before retrying an incomplete crawl.
+RETRY_GAP = timedelta(hours=2)
+
+# Quick runs look at the same slice of the catalogue as the full crawl, so the
+# "sold" detection (which trusts the crawl coverage) stays correct.
+QUICK_FILTERS = {
+    "year_from": autobazar.BASE_YEAR_FROM,
+    "mileage_to": autobazar.BASE_MILEAGE_TO,
+    "damaged": True,  # site quirk: true == NON-damaged
+}
 
 
 # --- scheduling -------------------------------------------------------------
 
-def _full_scrape_pending(session: Session, now: datetime) -> bool:
-    """True when today's scheduled full crawl should be started now.
+def _crawl_complete(run: ScrapeRun) -> bool:
+    return (
+        run.status == ScrapeRun.Status.success
+        and run.segments_total > 0
+        and run.segments_failed == 0
+        and run.segments_done >= run.segments_total
+    )
 
-    At most one full crawl runs per day: a crawl triggered manually ("scrape
-    now" button) counts as well, so the scheduled crawl is skipped for that day.
+
+def _full_scrape_pending(session: Session, now: datetime) -> bool:
+    """True when today's full crawl should be started (or a failed one retried).
+
+    At most one complete crawl runs per day - a manually triggered one counts
+    as well. Incomplete crawls (throttling, crashes) may be retried, but not
+    more often than every RETRY_GAP.
     """
     if now.hour < config.SCRAPE_SCHEDULE_HOUR:
         return False
 
-    active = session.exec(
+    latest = session.exec(
         select(ScrapeRun)
-        .where(
-            ScrapeRun.kind == ScrapeRun.Kind.full,
-            ScrapeRun.status == ScrapeRun.Status.running,
-        )
+        .where(ScrapeRun.kind == ScrapeRun.Kind.full)
+        .order_by(ScrapeRun.id.desc())
         .limit(1)
     ).first()
-    if active is not None:
+    if latest is None:
+        return True
+    if latest.status == ScrapeRun.Status.running:
         return False  # a crawl is already in progress (e.g. resumed)
 
-    today_start_utc = (
-        now.replace(hour=0, minute=0, second=0, microsecond=0)
-        .astimezone(timezone.utc)
-        .replace(tzinfo=None)
-    )
-    started_today = session.exec(
-        select(ScrapeRun)
-        .where(
-            ScrapeRun.kind == ScrapeRun.Kind.full,
-            ScrapeRun.started_at >= today_start_utc,
-        )
-        .limit(1)
-    ).first()
-    return started_today is None
+    now_utc = now.astimezone(timezone.utc).replace(tzinfo=None)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
+    if latest.started_at >= today_start and _crawl_complete(latest):
+        return False
+    return (now_utc - latest.started_at) >= RETRY_GAP
 
 
 # --- jobs -------------------------------------------------------------------
@@ -83,7 +98,7 @@ def run_quick_scrape(job: dict) -> None:
 
         new = updated = 0
         try:
-            for batch in autobazar.iter_pages(pages):
+            for batch in autobazar.iter_pages(pages, QUICK_FILTERS):
                 n, u = store.upsert_listings(session, batch)
                 new += n
                 updated += u
@@ -104,8 +119,7 @@ def run_quick_scrape(job: dict) -> None:
         run.finished_at = utcnow()
         session.add(run)
         session.commit()
-
-    log.info("Quick scrape finished: %s new, %s updated", new, updated)
+        log.info("Quick scrape finished: %s new, %s updated", new, updated)
 
 
 def _sleep_until_next_hour() -> None:
@@ -139,11 +153,29 @@ def _resume_or_create_full_run(session: Session) -> ScrapeRun:
     return run
 
 
+def _mark_missing_as_sold(session: Session, crawl_start: datetime) -> int:
+    """Mark active listings the complete crawl did not see as sold.
+
+    Only trust this after a CLEAN, complete crawl: a listing missing from a
+    full pass over the catalogue no longer exists on the source site.
+    """
+    result = session.execute(
+        text(
+            "UPDATE listing SET status = 'sold' "
+            "WHERE status = 'active' AND last_seen < :start"
+        ),
+        {"start": crawl_start},
+    )
+    session.commit()
+    return int(result.rowcount or 0)
+
+
 def run_full_scrape(job: dict) -> None:
     """Crawl the whole catalogue segment by segment (slow, runs for hours).
 
     The run saves its cursor after every segment, so an interrupted crawl
-    resumes where it stopped instead of starting over.
+    resumes where it stopped. Only a clean, complete crawl marks missing
+    listings as sold.
     """
     if not autobazar.within_scrape_window():
         log.info("Skipping full scrape: outside the scrape window")
@@ -151,65 +183,109 @@ def run_full_scrape(job: dict) -> None:
 
     max_segments = job.get("max_segments")
     segments = autobazar.build_segments()
-    log.info("Full crawl: %s segments%s", len(segments),
-             f" (limited to {max_segments})" if max_segments else "")
+    log.info(
+        "Full crawl: %s segments%s",
+        len(segments),
+        f" (limited to {max_segments})" if max_segments else "",
+    )
 
     with Session(engine) as session:
         run = _resume_or_create_full_run(session)
         start = run.cursor or 0
+        run.segments_total = len(segments)
+        session.add(run)
+        session.commit()
 
         # The same car can appear in several segments (promoted padding
         # listings); process each car only once per run.
         seen: set[str] = set()
-        try:
-            for idx in range(start, len(segments)):
-                if max_segments is not None and idx - start >= max_segments:
+        consecutive_failures = 0
+        aborted = False
+
+        for idx in range(start, len(segments)):
+            if max_segments is not None and idx - start >= max_segments:
+                break
+
+            make, year = segments[idx]
+            run.current_segment = f"{make or 'all'} {year}"
+            run.cursor = idx
+            session.add(run)
+            session.commit()
+
+            filters = autobazar.segment_filters(make, year)
+            while True:  # retries the segment after a rate-limit pause
+                try:
+                    for batch in autobazar.iter_pages(
+                        autobazar.MAX_PAGE, filters, split=True
+                    ):
+                        batch = [i for i in batch if i["source_id"] not in seen]
+                        seen.update(i["source_id"] for i in batch)
+                        if not batch:
+                            continue
+                        n, u = store.upsert_listings(session, batch)
+                        run.listings_new += n
+                        run.listings_updated += u
+                        session.add(run)
+                        session.commit()
+                    run.segments_done += 1
+                    consecutive_failures = 0
+                    break
+                except autobazar.HourlyLimitReached as exc:
+                    log.warning("%s - pausing until the next hour", exc)
+                    _sleep_until_next_hour()
+                except (RequestException, autobazar.ScrapeError) as exc:
+                    run.segments_failed += 1
+                    consecutive_failures += 1
+                    log.warning(
+                        "Segment '%s' failed (%s: %s)",
+                        run.current_segment,
+                        type(exc).__name__,
+                        exc,
+                    )
+                    if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                        run.error = (
+                            f"{consecutive_failures} segments in a row failed "
+                            f"({type(exc).__name__}) - the source site is probably "
+                            "throttling us; aborting"
+                        )
+                        aborted = True
                     break
 
-                make, year = segments[idx]
-                run.current_segment = f"{make or 'all'} {year}"
-                run.cursor = idx
-                session.add(run)
-                session.commit()
+            session.add(run)
+            session.commit()
+            if aborted:
+                break
 
-                filters = autobazar.segment_filters(make, year)
-                while True:  # retries the segment after a rate-limit pause
-                    try:
-                        for batch in autobazar.iter_pages(
-                            autobazar.MAX_PAGE, filters, split=True
-                        ):
-                            batch = [i for i in batch if i["source_id"] not in seen]
-                            seen.update(i["source_id"] for i in batch)
-                            if not batch:
-                                continue
-                            n, u = store.upsert_listings(session, batch)
-                            run.listings_new += n
-                            run.listings_updated += u
-                            session.add(run)
-                            session.commit()
-                        break
-                    except autobazar.HourlyLimitReached as exc:
-                        log.warning("%s - pausing until the next hour", exc)
-                        _sleep_until_next_hour()
-                    except RequestException as exc:
-                        # A flaky segment must not kill the whole crawl.
-                        log.warning("Segment '%s' failed (%s) - skipping",
-                                    run.current_segment, exc)
-                        break
-
+        complete = run.segments_failed == 0 and run.segments_done >= len(segments)
+        if max_segments is not None:
+            # Deliberate partial run (testing / refresh) - no sold marking.
+            run.status = ScrapeRun.Status.success
+        elif complete:
+            sold = _mark_missing_as_sold(session, run.started_at)
+            log.info("Crawl complete - marked %s listings as sold", sold)
             run.status = ScrapeRun.Status.success
             run.cursor = None
             run.current_segment = None
-        except Exception as exc:  # noqa: BLE001 - a failed run must not kill the worker
-            log.exception("Full crawl failed")
+        else:
             run.status = ScrapeRun.Status.failed
-            run.error = str(exc)[:500]
+            if not run.error:
+                run.error = (
+                    f"crawl incomplete: {run.segments_done} segments done, "
+                    f"{run.segments_failed} failed of {len(segments)}"
+                )
 
         run.finished_at = utcnow()
         session.add(run)
         session.commit()
-        log.info("Full crawl finished: %s new, %s updated",
-                 run.listings_new, run.listings_updated)
+        log.info(
+            "Full crawl finished (%s): %s new, %s updated, segments %s/%s done, %s failed",
+            run.status.value,
+            run.listings_new,
+            run.listings_updated,
+            run.segments_done,
+            run.segments_total,
+            run.segments_failed,
+        )
 
 
 def run_prediction_backfill() -> None:

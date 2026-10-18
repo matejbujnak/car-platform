@@ -33,6 +33,7 @@ def _listing_dict(row: Listing, prediction: dict | None) -> dict:
         "source_id": row.source_id,
         "url": row.url,
         "title": row.title,
+        "status": row.status,
         "make": row.make,
         "model": row.model,
         "year": row.year,
@@ -106,6 +107,7 @@ def list_listings(
     year_min: int | None = Query(None, ge=1900),
     year_max: int | None = Query(None, le=2100),
     mileage_max: int | None = Query(None, ge=0),
+    status: str = Query("active", pattern="^(active|sold|all)$"),
     verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
     sort: str = Query(
         "newest",
@@ -134,6 +136,8 @@ def list_listings(
         conditions.append(Listing.year <= year_max)
     if mileage_max is not None:
         conditions.append(Listing.mileage_km <= mileage_max)
+    if status != "all":
+        conditions.append(Listing.status == status)
 
     mv = active_model(session)
     needs_prediction = verdict is not None or sort.startswith(("deal_", "fair_"))

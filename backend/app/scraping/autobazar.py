@@ -66,6 +66,11 @@ class ScrapeBlocked(Exception):
     """robots.txt does not allow crawling this URL."""
 
 
+class ScrapeError(Exception):
+    """The site returned a page without usable data (throttling, challenge
+    page, layout change). Must not be mistaken for an empty result."""
+
+
 class HourlyLimitReached(Exception):
     """The request budget for this hour is used up."""
 
@@ -239,14 +244,14 @@ def _make_session() -> requests.Session:
 
 def _fetch_page(session: requests.Session, page: int, filters: Optional[dict]) -> tuple[list[dict], int]:
     data = _extract_next_data(_get(session, _build_url(page, filters)))
-    if not data:
-        return [], 0
+    if data is None:
+        raise ScrapeError("page contains no listing data (throttling or challenge?)")
     try:
         sr = data["props"]["pageProps"]["searchRecords"]
         records = sr.get("data") or []
         total = sr.get("total") or 0
-    except (KeyError, TypeError):
-        return [], 0
+    except (KeyError, TypeError) as err:
+        raise ScrapeError(f"unexpected page structure: {err}") from err
     parsed = [d for d in (_record_to_dict(r) for r in records) if d is not None]
     return parsed, total
 

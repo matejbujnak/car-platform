@@ -13,6 +13,9 @@ router = APIRouter(prefix="/api/stats", tags=["stats"])
 @router.get("")
 def stats(session: Session = Depends(get_session)) -> dict:
     total = session.exec(select(func.count()).select_from(Listing)).one()
+    sold_total = session.exec(
+        select(func.count()).select_from(Listing).where(Listing.status == "sold")
+    ).one()
     makes = [
         row
         for row in session.exec(
@@ -37,6 +40,7 @@ def stats(session: Session = Depends(get_session)) -> dict:
 
     return {
         "listings_total": total,
+        "sold_total": sold_total,
         "by_verdict": by_verdict,
         "makes": makes,
         "model_name": model_name,

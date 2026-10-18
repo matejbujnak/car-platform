@@ -96,8 +96,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           {running && (
             <span className="text-slate-500">
               Scraping…
-              {running.current_segment ? ` ${running.current_segment}` : ""}
-              {running.cursor != null ? ` · #${running.cursor + 1}` : ""}
+              {running.segments_total > 0
+                ? ` ${running.segments_done}/${running.segments_total}`
+                : ""}
+              {running.current_segment ? ` · ${running.current_segment}` : ""}
             </span>
           )}
           <button
@@ -204,10 +206,14 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <td className="px-3 py-2.5 text-right text-slate-600">
                   {r.listings_updated}
                 </td>
-                <td className="px-3 py-2.5 text-slate-400">
-                  {r.current_segment
-                    ? `${r.current_segment}${r.cursor != null ? ` · #${r.cursor + 1}` : ""}`
+                <td className="whitespace-nowrap px-3 py-2.5 text-slate-400">
+                  {r.segments_total > 0
+                    ? `${r.segments_done}/${r.segments_total}`
                     : "—"}
+                  {r.segments_failed > 0 && (
+                    <span className="text-red-500"> ({r.segments_failed} failed)</span>
+                  )}
+                  {r.current_segment ? ` · ${r.current_segment}` : ""}
                 </td>
               </tr>
             ))}
