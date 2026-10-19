@@ -7,6 +7,7 @@ import {
   type Stats,
 } from "../api";
 import DealBadge from "../components/DealBadge";
+import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
 import {
   BODY_OPTIONS,
@@ -188,6 +189,9 @@ export default function CalculatorPage() {
                   high={result.interval_high_eur}
                   actual={askingPrice ? Number(askingPrice) : null}
                 />
+              </div>
+              <div className="mt-8">
+                <ExplanationList items={result.explanation} />
               </div>
               {result.deal_score != null && (
                 <p className="mt-6 text-sm text-slate-600">

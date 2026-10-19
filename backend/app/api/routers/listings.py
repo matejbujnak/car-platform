@@ -8,12 +8,14 @@ from app.db.models import Listing, Prediction
 from app.db.session import get_session
 from app.ml.predict import (
     CAR_FIELDS,
+    active_artifact,
     active_model,
     deal_verdict,
     load_artifact,
     predict_prices,
 )
 from app.ml.features import plausible_price
+from app.ml.explain import explain_instance
 
 router = APIRouter(prefix="/api/listings", tags=["listings"])
 
@@ -236,4 +238,10 @@ def get_listing(listing_id: int, session: Session = Depends(get_session)) -> dic
     row = session.get(Listing, listing_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Listing not found")
-    return _enriched([row], session)[0]
+    item = _enriched([row], session)[0]
+    # Local explanation: which features drive this car's fair price.
+    artifact = active_artifact(session)
+    if artifact is not None:
+        car = {k: getattr(row, k) for k in CAR_FIELDS}
+        item["explanation"] = explain_instance(artifact, car)
+    return item

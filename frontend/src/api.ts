@@ -2,7 +2,13 @@
 // app is served from the same origin and requests go through the nginx proxy.
 const API = import.meta.env.VITE_API_URL ?? "";
 
-export type Verdict = "cheap" | "fair" | "overpriced";
+export type Verdict = "cheap" | "fair" | "overpriced" | "suspicious";
+
+export interface Explanation {
+  feature: string;
+  value: string;
+  impact_eur: number;
+}
 
 export interface Listing {
   id: number;
@@ -28,6 +34,7 @@ export interface Listing {
   interval_high_eur?: number;
   deal_verdict?: Verdict | null;
   deal_score?: number | null;
+  explanation?: Explanation[];
 }
 
 export interface Stats {
@@ -45,6 +52,7 @@ export interface Prediction {
   model_name: string;
   deal_verdict?: Verdict;
   deal_score?: number;
+  explanation?: Explanation[];
 }
 
 export interface ScrapeRun {
@@ -67,7 +75,7 @@ export interface ModelInfo {
   id: number;
   name: string;
   dataset_rows: number;
-  metrics: Record<string, number> | null;
+  metrics: Record<string, any> | null;
   is_active: boolean;
   trained_at: string;
 }

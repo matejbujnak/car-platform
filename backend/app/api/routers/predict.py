@@ -5,6 +5,7 @@ from pydantic import BaseModel, Field
 from sqlmodel import Session
 
 from app.db.session import get_session
+from app.ml.explain import explain_instance
 from app.ml.predict import active_artifact, deal_verdict, predict_prices
 from app.core.rate_limit import limiter
 
@@ -43,6 +44,7 @@ def predict(
 
     prediction = predict_prices(artifact, [car.model_dump()])[0]
     result = {**prediction, "model_name": artifact["model_name"]}
+    result["explanation"] = explain_instance(artifact, car.model_dump())
     if car.price_eur is not None:
         verdict, score = deal_verdict(car.price_eur, prediction)
         result["deal_verdict"] = verdict

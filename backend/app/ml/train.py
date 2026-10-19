@@ -39,6 +39,7 @@ from sklearn.preprocessing import OneHotEncoder, StandardScaler
 from app import config
 from app.db.models import ModelVersion
 from app.db.session import engine
+from app.ml.explain import RAW_FIELDS, global_importance
 from app.ml.features import (
     CATEGORICAL,
     CURRENT_YEAR,
@@ -189,7 +190,14 @@ def train(csv_path: str | None = None) -> None:
     conformal_pct = (np.exp(conformal_q_log) - 1) * 100
     print(f"{int(INTERVAL_COVERAGE * 100)}% interval: +/- {conformal_pct:.1f}% of the fair price")
 
-    save_artifact(best, best_name, results[best_name], conformal_q_log, len(df))
+    # Global explainability: which features drive the model overall.
+    sample = x_test.index.to_series().sample(
+        min(2000, len(x_test)), random_state=RANDOM_STATE
+    )
+    importance = global_importance(best, df.loc[sample, RAW_FIELDS].to_dict("records"))
+    print("Top features:", importance[:5])
+
+    save_artifact(best, best_name, results[best_name], conformal_q_log, len(df), importance)
 
 
 def save_artifact(
@@ -198,6 +206,7 @@ def save_artifact(
     metrics_: dict[str, float],
     conformal_q_log: float,
     rows: int,
+    importance: list[list],
 ) -> None:
     os.makedirs(config.MODEL_DIR, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -210,6 +219,7 @@ def save_artifact(
             "model_name": model_name,
             "metrics": metrics_,
             "conformal_q_log": conformal_q_log,
+            "global_importance": importance,
             "features": {"numeric": NUMERIC, "categorical": CATEGORICAL},
             "trained_at": stamp,
             "log_target": True,
@@ -231,6 +241,7 @@ def save_artifact(
                 metrics={
                     **metrics_,
                     "conformal_q_pct": round((np.exp(conformal_q_log) - 1) * 100, 1),
+                    "top_features": importance,
                 },
                 is_active=True,
             )

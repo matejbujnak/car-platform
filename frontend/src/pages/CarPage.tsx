@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { fetchListing, type Listing } from "../api";
+import {
+  fetchListing,
+  type Explanation,
+  type Listing,
+} from "../api";
 import DealBadge from "../components/DealBadge";
+import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
 import { formatKm, formatPrice } from "../components/format";
 
@@ -94,6 +99,9 @@ export default function CarPage() {
               high={car.interval_high_eur ?? car.fair_price_eur}
               actual={car.price_eur}
             />
+          </div>
+          <div className="mt-8">
+            <ExplanationList items={car.explanation} />
           </div>
         </section>
       )}

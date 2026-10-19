@@ -87,6 +87,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   }
 
   const running = runs.find((r) => r.status === "running");
+  const activeModel = models.find((m) => m.is_active);
+  const topFeatures: [string, number][] =
+    (activeModel?.metrics?.top_features as [string, number][]) ?? [];
 
   return (
     <div className="mt-8">
@@ -169,6 +172,31 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           </tbody>
         </table>
       </section>
+
+      {/* Feature importance */}
+      {topFeatures.length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+            Feature importance
+          </h2>
+          <div className="mt-3 max-w-xl">
+            {topFeatures.map(([name, share]) => (
+              <div key={name} className="flex items-center gap-3 py-1 text-sm">
+                <span className="w-28 text-slate-600">{name}</span>
+                <div className="h-2 flex-1 bg-slate-100">
+                  <div
+                    className="h-2 bg-slate-900"
+                    style={{ width: `${Math.round(share * 100)}%` }}
+                  />
+                </div>
+                <span className="w-12 text-right text-slate-400">
+                  {Math.round(share * 100)}%
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Scrape runs */}
       <section className="mt-8">
