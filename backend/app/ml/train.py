@@ -36,11 +36,11 @@ for _var in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUME
 import joblib
 import numpy as np
 import pandas as pd
+import zlib
 from lightgbm import LGBMRegressor
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
-from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -86,11 +86,29 @@ def load_data(csv_path: str | None) -> pd.DataFrame:
             df = df.rename(columns={"last_price_eur": TARGET})
     else:
         query = (
-            "SELECT make, model, year, mileage_km, fuel, power_kw, engine_cc, "
-            "gearbox, body, drive, seller_type, price_eur FROM listing"
+            "SELECT source_id, make, model, year, mileage_km, fuel, power_kw, "
+            "engine_cc, gearbox, body, drive, seller_type, price_eur FROM listing"
         )
         df = pd.read_sql(query, engine)
+    if "source_id" not in df.columns:
+        # Stable id for the deterministic split: listing id from the URL, or
+        # the row position as a last resort.
+        if "url" in df.columns:
+            df["source_id"] = df["url"].astype(str).str.extract(r"/detail/[^/]+/([^/]+)/?$")
+        df["source_id"] = df["source_id"].fillna(pd.Series(df.index, index=df.index)).astype(str)
     print(f"Loaded {len(df):,} rows from {'CSV' if csv_path else 'database'}")
+    return df
+
+
+def add_split_bucket(df: pd.DataFrame) -> pd.DataFrame:
+    """Deterministic train/calibration/test assignment (60/20/20).
+
+    Rows are assigned by the hash of their listing id, so a car stays in the
+    same split across retrainings - metrics are then comparable between runs
+    even when the scrape adds new rows.
+    """
+    df = df.copy()
+    df["_bucket"] = df["source_id"].map(lambda s: zlib.crc32(str(s).encode()) % 10)
     return df
 
 
@@ -186,7 +204,7 @@ def metrics(y_true, y_pred) -> dict[str, float]:
 # --- training ---------------------------------------------------------------
 
 def train(csv_path: str | None = None) -> None:
-    df = add_features(clean(load_data(csv_path)), YEAR_MAX)
+    df = add_split_bucket(add_features(clean(load_data(csv_path)), YEAR_MAX))
     if len(df) < 200:
         raise SystemExit(
             f"Need at least 200 cleaned rows to train, got {len(df)}. "
@@ -215,12 +233,16 @@ def train(csv_path: str | None = None) -> None:
         y_price = sub[TARGET]
         x = sub[CATEGORICAL + NUMERIC]
 
-        x_train, x_test, y_train_log, y_test_log, y_train_price, y_test_price = (
-            train_test_split(x, y_log, y_price, test_size=0.20, random_state=RANDOM_STATE)
-        )
-        x_train, x_cal, y_train_log, y_cal_log, _, _ = train_test_split(
-            x_train, y_train_log, y_train_price, test_size=0.25, random_state=RANDOM_STATE
-        )
+        # Deterministic 60/20/20 split by listing id (see add_split_bucket):
+        # the same cars land in the same split on every retraining.
+        buckets = sub["_bucket"]
+        train_mask = buckets >= 4
+        cal_mask = (buckets >= 2) & (buckets < 4)
+        test_mask = buckets < 2
+
+        x_train, y_train_log = x[train_mask], y_log[train_mask]
+        x_cal, y_cal_log = x[cal_mask], y_log[cal_mask]
+        x_test, y_test_price = x[test_mask], y_price[test_mask]
 
         results: dict[str, dict] = {}
         fitted: dict[str, Pipeline] = {}

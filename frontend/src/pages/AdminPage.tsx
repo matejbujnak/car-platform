@@ -92,7 +92,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
     (activeModel?.metrics?.top_features as [string, number][]) ?? [];
   const tierMetrics: Record<
     string,
-    { rows: number; mae: number; r2: number; interval_pct: number }
+    { rows: number; mae: number; mape_pct: number; r2: number; interval_pct: number }
   > = (activeModel?.metrics?.tiers as Record<string, never>) ?? {};
 
   return (
@@ -139,6 +139,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
               <th className="py-2.5 pr-4">Model</th>
               <th className="px-3 py-2.5 text-right">Rows</th>
               <th className="px-3 py-2.5 text-right">MAE</th>
+              <th className="px-3 py-2.5 text-right">MAPE</th>
               <th className="px-3 py-2.5 text-right">R²</th>
               <th className="px-3 py-2.5 text-right">Interval</th>
               <th className="px-3 py-2.5">Status</th>
@@ -153,6 +154,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 </td>
                 <td className="px-3 py-2.5 text-right text-slate-600">
                   {m.metrics ? formatPrice(m.metrics.mae) : "—"}
+                </td>
+                <td className="px-3 py-2.5 text-right text-slate-600">
+                  {m.metrics?.mape_pct != null ? `${m.metrics.mape_pct}%` : "—"}
                 </td>
                 <td className="px-3 py-2.5 text-right text-slate-600">
                   {m.metrics?.r2 ?? "—"}
@@ -189,6 +193,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                 <th className="py-2.5 pr-4">Tier</th>
                 <th className="px-3 py-2.5 text-right">Rows</th>
                 <th className="px-3 py-2.5 text-right">MAE</th>
+                <th className="px-3 py-2.5 text-right">MAPE</th>
                 <th className="px-3 py-2.5 text-right">R²</th>
                 <th className="px-3 py-2.5 text-right">Interval</th>
               </tr>
@@ -202,6 +207,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                   </td>
                   <td className="px-3 py-2.5 text-right text-slate-600">
                     {formatPrice(m.mae)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.mape_pct}%
                   </td>
                   <td className="px-3 py-2.5 text-right text-slate-600">{m.r2}</td>
                   <td className="px-3 py-2.5 text-right text-slate-600">
