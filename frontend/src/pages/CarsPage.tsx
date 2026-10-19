@@ -34,6 +34,7 @@ interface Filters {
   year_max: string;
   mileage_max: string;
   status: string;
+  offer: string;
   verdict: string;
   sort: string;
   page: number;
@@ -53,6 +54,7 @@ const EMPTY: Filters = {
   year_max: "",
   mileage_max: "",
   status: "active",
+  offer: "sale",
   verdict: "",
   sort: "newest",
   page: 0,
@@ -143,6 +145,7 @@ export default function CarsPage() {
       year_max: applied.year_max,
       mileage_max: applied.mileage_max,
       status: applied.status,
+      offer: applied.offer,
       verdict: applied.verdict,
       sort: applied.sort,
     })
@@ -291,6 +294,15 @@ export default function CarsPage() {
           <option value="active">Available</option>
           <option value="sold">Sold</option>
           <option value="all">All listings</option>
+        </select>
+        <select
+          className={inputCls}
+          value={draft.offer}
+          onChange={(e) => set("offer", e.target.value)}
+        >
+          <option value="sale">For sale</option>
+          <option value="rent">Rent / subscription</option>
+          <option value="all">Any offer</option>
         </select>
         <select
           className={inputCls}
@@ -460,6 +472,8 @@ function Row({ car }: { car: Listing }) {
       <td className="whitespace-nowrap px-4 py-3">
         {sold ? (
           <span className="text-sm font-medium text-slate-400">Sold</span>
+        ) : car.offer_type === "rent" ? (
+          <span className="text-sm font-medium text-amber-600">Rental</span>
         ) : (
           <DealBadge verdict={car.deal_verdict} />
         )}

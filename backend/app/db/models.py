@@ -49,6 +49,9 @@ class Listing(SQLModel, table=True):
     drive: Optional[str] = Field(default=None)
     seller_type: Optional[str] = Field(default=None)
     price_eur: Optional[float] = Field(default=None, index=True)
+    # "sale" for regular offers, "rent" for rental/subscription offers whose
+    # price field shows a monthly or daily rate (see app/data_quality.py).
+    offer_type: str = Field(default="sale", index=True)
     # "active" while the listing exists on the source site, "sold" after it
     # disappears from a complete crawl (the link would 404).
     status: str = Field(default="active", index=True)

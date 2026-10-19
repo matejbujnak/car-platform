@@ -45,6 +45,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from app import config
+from app.data_quality import classify_offer
 from app.db.models import ModelVersion
 from app.db.session import engine
 from app.ml.explain import RAW_FIELDS, global_importance
@@ -85,10 +86,13 @@ def load_data(csv_path: str | None) -> pd.DataFrame:
         df = pd.read_csv(csv_path)
         if TARGET not in df.columns and "last_price_eur" in df.columns:
             df = df.rename(columns={"last_price_eur": TARGET})
+        if "offer_type" not in df.columns:
+            df["offer_type"] = df.get("title", pd.Series("", index=df.index)).map(classify_offer)
     else:
         query = (
-            "SELECT source_id, make, model, year, mileage_km, fuel, power_kw, "
-            "engine_cc, gearbox, body, drive, seller_type, price_eur FROM listing"
+            "SELECT source_id, offer_type, make, model, year, mileage_km, fuel, "
+            "power_kw, engine_cc, gearbox, body, drive, seller_type, price_eur "
+            "FROM listing"
         )
         df = pd.read_sql(query, engine)
     if "source_id" not in df.columns:
@@ -122,6 +126,10 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     n0 = len(df)
     dedup_cols = [c for c in ["make", "model", "year", "mileage_km", "power_kw", TARGET] if c in df.columns]
     df = df.drop_duplicates(subset=dedup_cols)
+    # Rental/subscription offers show rates in the price field - they must not
+    # teach the model that a Porsche costs 5,890 EUR.
+    if "offer_type" in df.columns:
+        df = df[df["offer_type"] != "rent"]
     df = df[df[TARGET].notna() & (df[TARGET] > PRICE_MIN) & (df[TARGET] <= PRICE_MAX)]
     df = df[df["year"].between(YEAR_MIN, YEAR_MAX)]
     df = df[(df["mileage_km"].isna()) | (df["mileage_km"] <= MILEAGE_MAX)]

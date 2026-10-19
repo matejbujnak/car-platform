@@ -32,6 +32,7 @@ from requests.exceptions import RequestException
 from urllib3.util.retry import Retry
 
 from app import config
+from app.data_quality import classify_offer
 from app.scraping import jobs
 
 log = logging.getLogger(__name__)
@@ -182,6 +183,7 @@ def _record_to_dict(rec: dict) -> Optional[dict]:
         "source_id": str(listing_id),
         "url": f"{BASE_URL}/detail/{rec.get('sefName') or ''}/{listing_id}/",
         "title": rec.get("title") or "",
+        "offer_type": classify_offer(rec.get("title")),
         "make": rec.get("brandValue") or "",
         "model": rec.get("carModelValue") or "",
         "year": year,

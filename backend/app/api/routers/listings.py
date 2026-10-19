@@ -37,6 +37,7 @@ def _listing_dict(row: Listing, prediction: dict | None) -> dict:
         "url": row.url,
         "title": row.title,
         "status": row.status,
+        "offer_type": row.offer_type,
         "make": row.make,
         "model": row.model,
         "year": row.year,
@@ -84,7 +85,7 @@ def _enriched(rows: list[Listing], session: Session) -> list[dict]:
         )
         for row, pred in zip(missing, predictions):
             verdict = score = None
-            if plausible_price(row.price_eur):
+            if row.offer_type == "sale" and plausible_price(row.price_eur):
                 verdict, score = deal_verdict(row.price_eur, pred)
             cached[row.id] = {
                 **pred,
@@ -113,6 +114,7 @@ def list_listings(
     year_max: int | None = Query(None, le=2100),
     mileage_max: int | None = Query(None, ge=0),
     status: str = Query("active", pattern="^(active|sold|all)$"),
+    offer: str = Query("sale", pattern="^(sale|rent|all)$"),
     verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
     sort: str = Query(
         "newest",
@@ -174,6 +176,8 @@ def list_listings(
         conditions.append(Listing.mileage_km <= mileage_max)
     if status != "all":
         conditions.append(Listing.status == status)
+    if offer != "all":
+        conditions.append(Listing.offer_type == offer)
 
     mv = active_model(session)
     if mv is None:

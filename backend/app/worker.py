@@ -323,7 +323,9 @@ def run_prediction_backfill() -> None:
             )
             for row, pred in zip(rows, predictions):
                 verdict = score = None
-                if plausible_price(row.price_eur):
+                # Rentals/subscription offers and placeholder prices get no
+                # deal verdict - their price is not a sale price.
+                if row.offer_type == "sale" and plausible_price(row.price_eur):
                     verdict, score = deal_verdict(row.price_eur, pred)
                 session.add(
                     Prediction(

@@ -16,6 +16,7 @@ export interface Listing {
   url: string;
   title: string;
   status: "active" | "sold";
+  offer_type: "sale" | "rent";
   make: string;
   model: string;
   year: number;

@@ -15,6 +15,7 @@ from pathlib import Path
 
 from sqlmodel import Session
 
+from app.data_quality import classify_offer
 from app.db.session import engine
 from app.scraping.store import upsert_listings
 
@@ -57,6 +58,7 @@ def _to_listing(row: dict) -> dict | None:
         "source_id": source_id,
         "url": url,
         "title": title,
+        "offer_type": classify_offer(title),
         "make": make,
         "model": model,
         "year": year,
