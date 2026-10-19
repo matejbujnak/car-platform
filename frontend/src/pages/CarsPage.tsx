@@ -181,6 +181,9 @@ export default function CarsPage() {
           Listings{" "}
           <span className="text-lg font-normal text-slate-400">
             {total.toLocaleString("en-US")} cars
+            {stats && stats.sold_total > 0 && (
+              <span> · {stats.sold_total.toLocaleString("en-US")} sold</span>
+            )}
           </span>
         </h1>
         {stats?.model_name && (
@@ -385,12 +388,15 @@ function SortTh({
 
 function Row({ car }: { car: Listing }) {
   const navigate = useNavigate();
+  const sold = car.status === "sold";
   return (
     <tr
       onClick={() => navigate(`/car/${car.id}`)}
-      className="cursor-pointer border-b border-slate-100 hover:bg-slate-50"
+      className={`cursor-pointer border-b border-slate-100 hover:bg-slate-50 ${
+        sold ? "text-slate-400" : ""
+      }`}
     >
-      <td className="py-3 pr-6 font-medium">{car.title}</td>
+      <td className={`py-3 pr-6 ${sold ? "" : "font-medium"}`}>{car.title}</td>
       <td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">
         {car.year}
       </td>
@@ -413,7 +419,7 @@ function Row({ car }: { car: Listing }) {
         {formatPrice(car.fair_price_eur)}
       </td>
       <td className="whitespace-nowrap px-4 py-3">
-        {car.status === "sold" ? (
+        {sold ? (
           <span className="text-sm font-medium text-slate-400">Sold</span>
         ) : (
           <DealBadge verdict={car.deal_verdict} />
