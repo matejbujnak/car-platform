@@ -81,6 +81,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   if (options.body) headers["Content-Type"] = "application/json";
 
   const resp = await fetch(`${API}${path}`, { ...options, headers });
+  if (resp.status === 401 && localStorage.getItem("token")) {
+    // Session expired - drop the token and return to the login screen.
+    localStorage.removeItem("token");
+    window.location.reload();
+  }
   if (!resp.ok) {
     const detail = await resp.json().catch(() => null);
     throw new Error(detail?.detail ?? `Request failed (${resp.status})`);

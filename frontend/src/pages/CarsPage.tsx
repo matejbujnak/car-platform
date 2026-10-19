@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { fetchListings, fetchStats, type Listing, type Stats } from "../api";
 import DealBadge from "../components/DealBadge";
+import MultiSelect from "../components/MultiSelect";
 import {
   BODY_OPTIONS,
   FUEL_OPTIONS,
@@ -49,13 +50,14 @@ const EMPTY: Filters = {
 
 // Column sorting: 1st click -> one direction, 2nd click -> reverse,
 // 3rd click -> sorting off (back to newest first).
-type SortKey = "year" | "km" | "price" | "fair" | "deal";
+type SortKey = "year" | "km" | "price" | "fair" | "profit" | "deal";
 
 const SORT_CYCLE: Record<SortKey, [string, string]> = {
   year: ["year_new", "year_old"],
   km: ["mileage_low", "mileage_high"],
   price: ["price_low", "price_high"],
   fair: ["fair_low", "fair_high"],
+  profit: ["profit_best", "profit_worst"],
   deal: ["deal_best", "deal_worst"],
 };
 
@@ -68,6 +70,8 @@ const SORT_ARROW: Record<string, string> = {
   price_high: "↓",
   fair_low: "↑",
   fair_high: "↓",
+  profit_best: "↓",
+  profit_worst: "↑",
   deal_best: "↓",
   deal_worst: "↑",
 };
@@ -193,47 +197,30 @@ export default function CarsPage() {
 
       {/* Filter bar */}
       <section className="mt-4 flex flex-wrap items-center gap-2">
-        <MakeSelect
+        <MultiSelect
+          placeholder="Make"
           value={draft.make}
           onChange={(v) => set("make", v)}
-          options={stats?.makes ?? []}
+          options={(stats?.makes ?? []).map((m) => [m, m])}
         />
-        <select
-          className={inputCls}
+        <MultiSelect
+          placeholder="Fuel"
           value={draft.fuel}
-          onChange={(e) => set("fuel", e.target.value)}
-        >
-          <option value="">Fuel</option>
-          {FUEL_OPTIONS.map(([label, value]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className={inputCls}
+          onChange={(v) => set("fuel", v)}
+          options={FUEL_OPTIONS}
+        />
+        <MultiSelect
+          placeholder="Gearbox"
           value={draft.gearbox}
-          onChange={(e) => set("gearbox", e.target.value)}
-        >
-          <option value="">Gearbox</option>
-          {GEARBOX_OPTIONS.map(([label, value]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
-        <select
-          className={inputCls}
+          onChange={(v) => set("gearbox", v)}
+          options={GEARBOX_OPTIONS}
+        />
+        <MultiSelect
+          placeholder="Body"
           value={draft.body}
-          onChange={(e) => set("body", e.target.value)}
-        >
-          <option value="">Body</option>
-          {BODY_OPTIONS.map(([label, value]) => (
-            <option key={value} value={value}>
-              {label}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => set("body", v)}
+          options={BODY_OPTIONS}
+        />
         <input
           className={`${inputCls} w-28`}
           value={draft.year_min}
@@ -300,7 +287,7 @@ export default function CarsPage() {
 
       {/* Table */}
       <section className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[1100px] text-[15px]">
+        <table className="w-full min-w-[1250px] text-[15px]">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
               <th className="py-2.5 pr-6">Car</th>
@@ -311,14 +298,16 @@ export default function CarsPage() {
               <th className="px-4 py-2.5">Gearbox</th>
               <SortTh label="Price" k="price" sort={applied.sort} onClick={onSortClick} right />
               <SortTh label="Fair" k="fair" sort={applied.sort} onClick={onSortClick} right />
-              <SortTh label="Deal" k="deal" sort={applied.sort} onClick={onSortClick} />
+              <SortTh label="Profit €" k="profit" sort={applied.sort} onClick={onSortClick} right />
+              <SortTh label="Profit %" k="deal" sort={applied.sort} onClick={onSortClick} right />
+              <th className="px-4 py-2.5">Deal</th>
               <th className="py-2.5 pl-6" />
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={10} className="py-16 text-center text-slate-400">
+                <td colSpan={12} className="py-16 text-center text-slate-400">
                   Loading…
                 </td>
               </tr>
@@ -379,86 +368,16 @@ function SortTh({
   );
 }
 
-function MakeSelect({
-  value,
-  onChange,
-  options,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  options: string[];
-}) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const selected = value ? value.split(",").filter(Boolean) : [];
-  const visible = options.filter((m) =>
-    m.toLowerCase().includes(query.trim().toLowerCase()),
-  );
-
-  const toggle = (make: string) => {
-    const next = selected.includes(make)
-      ? selected.filter((m) => m !== make)
-      : [...selected, make];
-    onChange(next.join(","));
-  };
-
-  return (
-    <div className="relative">
-      <button type="button" onClick={() => setOpen((o) => !o)} className={inputCls}>
-        {selected.length === 0
-          ? "Make"
-          : selected.length === 1
-            ? selected[0]
-            : `Make (${selected.length})`}
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 w-64 rounded border border-slate-200 bg-white shadow-lg">
-            <input
-              autoFocus
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search make…"
-              className="w-full border-b border-slate-100 px-3 py-2 text-sm focus:outline-none"
-            />
-            <div className="max-h-64 overflow-y-auto py-1">
-              {visible.length === 0 && (
-                <p className="px-3 py-2 text-sm text-slate-400">No matches</p>
-              )}
-              {visible.map((m) => (
-                <label
-                  key={m}
-                  className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50"
-                >
-                  <input
-                    type="checkbox"
-                    checked={selected.includes(m)}
-                    onChange={() => toggle(m)}
-                  />
-                  {m}
-                </label>
-              ))}
-            </div>
-            {selected.length > 0 && (
-              <button
-                type="button"
-                onClick={() => onChange("")}
-                className="w-full border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-500 hover:text-slate-900"
-              >
-                Clear selection
-              </button>
-            )}
-          </div>
-        </>
-      )}
-    </div>
-  );
-}
-
 function Row({ car }: { car: Listing }) {
   const navigate = useNavigate();
   const sold = car.status === "sold";
+  // Profit of the purchase: fair price minus asking price (positive = earn).
+  const hasProfit = car.deal_score != null && car.fair_price_eur != null && car.price_eur != null;
+  const profitEur = hasProfit ? (car.fair_price_eur ?? 0) - (car.price_eur ?? 0) : null;
+  const profitPct = car.deal_score != null ? car.deal_score * 100 : null;
+  const profitCls = (v: number) =>
+    v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-slate-400";
+  const sign = (v: number) => (v > 0 ? "+" : v < 0 ? "−" : "");
   return (
     <tr
       onClick={() => navigate(`/car/${car.id}`)}
@@ -487,6 +406,24 @@ function Row({ car }: { car: Listing }) {
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right text-slate-400">
         {formatPrice(car.fair_price_eur)}
+      </td>
+      <td
+        className={`whitespace-nowrap px-4 py-3 text-right font-medium ${
+          profitEur != null ? profitCls(profitEur) : "text-slate-300"
+        }`}
+      >
+        {profitEur != null
+          ? `${sign(profitEur)}${Math.abs(Math.round(profitEur)).toLocaleString("en-US")} €`
+          : "—"}
+      </td>
+      <td
+        className={`whitespace-nowrap px-4 py-3 text-right ${
+          profitPct != null ? profitCls(profitPct) : "text-slate-300"
+        }`}
+      >
+        {profitPct != null
+          ? `${sign(profitPct)}${Math.abs(profitPct).toFixed(0)}%`
+          : "—"}
       </td>
       <td className="whitespace-nowrap px-4 py-3">
         {sold ? (

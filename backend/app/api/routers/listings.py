@@ -1,6 +1,7 @@
 """Public endpoints with scraped listings."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import asc, desc, nullslast, or_
 from sqlmodel import Session, func, select
 
 from app.db.models import Listing, Prediction
@@ -111,7 +112,7 @@ def list_listings(
     verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
     sort: str = Query(
         "newest",
-        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|mileage_high|fair_low|fair_high|deal_best|deal_worst)$",
+        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|mileage_high|fair_low|fair_high|deal_best|deal_worst|profit_best|profit_worst)$",
     ),
 ) -> dict:
     """Paginated listing feed with filtering and sorting."""
@@ -121,19 +122,27 @@ def list_listings(
         if makes:
             conditions.append(Listing.make.in_(makes))
     if fuel:
-        conditions.append(Listing.fuel == fuel)
+        fuels = [f for f in fuel.split(",") if f]
+        if fuels:
+            conditions.append(Listing.fuel.in_(fuels))
     if gearbox:
         # Gearbox values in the data are free-form ("6-st. manualna",
         # "Automaticka", ...) - match the meaning instead of the exact string.
-        g = gearbox.lower()
-        if "auto" in g:
-            conditions.append(Listing.gearbox.ilike("%auto%"))
-        elif "manu" in g:
-            conditions.append(Listing.gearbox.ilike("%manu%"))
-        else:
-            conditions.append(Listing.gearbox == gearbox)
+        gearbox_patterns = []
+        for value in gearbox.split(","):
+            v = value.strip().lower()
+            if "auto" in v:
+                gearbox_patterns.append(Listing.gearbox.ilike("%auto%"))
+            elif "manu" in v:
+                gearbox_patterns.append(Listing.gearbox.ilike("%manu%"))
+            elif value.strip():
+                gearbox_patterns.append(Listing.gearbox == value.strip())
+        if gearbox_patterns:
+            conditions.append(or_(*gearbox_patterns))
     if body:
-        conditions.append(Listing.body == body)
+        bodies = [b for b in body.split(",") if b]
+        if bodies:
+            conditions.append(Listing.body.in_(bodies))
     if drive:
         conditions.append(Listing.drive == drive)
     if price_min is not None:
@@ -150,7 +159,7 @@ def list_listings(
         conditions.append(Listing.status == status)
 
     mv = active_model(session)
-    needs_prediction = verdict is not None or sort.startswith(("deal_", "fair_"))
+    needs_prediction = verdict is not None or sort.startswith(("deal_", "fair_", "profit_"))
     if needs_prediction and mv is None:
         return {"total": 0, "items": []}
 
@@ -175,6 +184,14 @@ def list_listings(
             if sort == "deal_best"
             else Prediction.deal_score.asc().nulls_last()
         )
+    elif sort.startswith("profit_"):
+        # Profit in EUR: fair price minus asking price (positive = good deal).
+        # Rows without a deal verdict (placeholder prices) go last.
+        profit = Prediction.fair_price_eur - Listing.price_eur
+        order = (
+            Prediction.deal_score.is_(None),
+            nullslast(desc(profit) if sort == "profit_best" else asc(profit)),
+        )
     elif sort.startswith("fair_"):
         order = (
             Prediction.fair_price_eur.asc().nulls_last()
@@ -193,7 +210,7 @@ def list_listings(
         }[sort]
 
     total = session.exec(count_query).one()
-    rows = session.exec(query.order_by(order).offset(offset).limit(limit)).all()
+    rows = session.exec(query.order_by(*order).offset(offset).limit(limit)).all()
     return {"total": total, "items": _enriched(rows, session)}
 
 
