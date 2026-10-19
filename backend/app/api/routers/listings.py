@@ -209,6 +209,8 @@ def list_listings(
             "mileage_high": Listing.mileage_km.desc().nulls_last(),
         }[sort]
 
+    if not isinstance(order, tuple):
+        order = (order,)
     total = session.exec(count_query).one()
     rows = session.exec(query.order_by(*order).offset(offset).limit(limit)).all()
     return {"total": total, "items": _enriched(rows, session)}
