@@ -42,7 +42,7 @@ FEATURE_GROUPS = {
 
 def _feature_columns(artifact: dict) -> list[tuple[str, str | None]]:
     """(feature, category) for every column of the transformed matrix."""
-    pipeline = artifact["pipeline"]
+    pipeline = artifact["pipeline"] if isinstance(artifact, dict) else artifact
     pre = pipeline.named_steps["pre"]
     columns: list[tuple[str, str | None]] = []
     ohe = pre.named_transformers_["cat"]
@@ -54,8 +54,11 @@ def _feature_columns(artifact: dict) -> list[tuple[str, str | None]]:
 
 
 def _shap_values(artifact: dict, cars: list[dict]) -> tuple[np.ndarray, float, np.ndarray]:
-    """TreeSHAP values in log-price space: (contributions, base, log predictions)."""
-    pipeline = artifact["pipeline"]
+    """TreeSHAP values in log-price space: (contributions, base, log predictions).
+
+    Accepts a saved artifact dict or a bare sklearn pipeline.
+    """
+    pipeline = artifact["pipeline"] if isinstance(artifact, dict) else artifact
     frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
     transformed = pipeline.named_steps["pre"].transform(frame[CATEGORICAL + NUMERIC])
     booster = pipeline.named_steps["model"].booster_
