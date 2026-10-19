@@ -1,0 +1,53 @@
+# Regenerates the demo GIF/screenshots in docs/ from the live demo and commits
+# them when they changed. Runs on every push to main (and weekly, so the demo
+# shows fresh data). The [skip ci] marker in the commit prevents a loop.
+name: Demo capture
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "0 4 * * 1"
+
+jobs:
+  capture:
+    if: ${{ !contains(github.event.head_commit.message || '', '[skip ci]') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright
+        working-directory: scripts
+        run: |
+          npm init -y >/dev/null
+          npm install playwright@1.55.0
+          npx playwright install chromium --with-deps
+
+      - name: Capture demo
+        working-directory: scripts
+        env:
+          DEMO_URL: https://car-platform.projects.matejbujnak.com
+          OUT_DIR: ../docs
+        run: node capture-demo.mjs
+
+      - name: Make GIF
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          bash scripts/make-gif.sh
+
+      - name: Commit updated demo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/
+          if ! git diff --cached --quiet; then
+            git commit -m "chore: refresh demo screenshots [skip ci]"
+            git push
+          fi

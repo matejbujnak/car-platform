@@ -31,6 +31,9 @@ postgres_data/
 *.csv
 *.sql
 
+# ---- Demo capture intermediate video (the GIF is committed instead) ----
+docs/*.webm
+
 # ---- Docker volumes ----
 letsencrypt/
 data/

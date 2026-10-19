@@ -6,6 +6,17 @@ which cars are **cheap (good deals)** and which are **overpriced**.
 
 > **Status: 🚧 work in progress** — the project is built in phases (see below).
 
+## Demo
+
+![Demo](docs/demo.gif)
+
+| Listings | Price analysis | Calculator |
+|---|---|---|
+| ![Listings](docs/01-listings.png) | ![Detail](docs/04-detail.png) | ![Calculator](docs/05-calculator.png) |
+
+The screenshots and the GIF are captured automatically from the live demo on
+every update (see `.github/workflows/demo.yml`).
+
 ## What it does
 
 - **Scrape** car listings — politely, with rate limits and checkpoints
