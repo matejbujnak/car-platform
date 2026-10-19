@@ -22,8 +22,8 @@ export const FUEL_OPTIONS = [
 ];
 
 export const GEARBOX_OPTIONS = [
-  ["Manual", "manuálna"],
-  ["Automatic", "automatická"],
+  ["Manual", "manual"],
+  ["Automatic", "automatic"],
 ];
 
 export const BODY_OPTIONS = [

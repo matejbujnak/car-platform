@@ -193,18 +193,11 @@ export default function CarsPage() {
 
       {/* Filter bar */}
       <section className="mt-4 flex flex-wrap items-center gap-2">
-        <select
-          className={inputCls}
+        <MakeSelect
           value={draft.make}
-          onChange={(e) => set("make", e.target.value)}
-        >
-          <option value="">Make</option>
-          {stats?.makes.map((m) => (
-            <option key={m} value={m}>
-              {m}
-            </option>
-          ))}
-        </select>
+          onChange={(v) => set("make", v)}
+          options={stats?.makes ?? []}
+        />
         <select
           className={inputCls}
           value={draft.fuel}
@@ -383,6 +376,83 @@ function SortTh({
     >
       {label} {active && <span className="text-slate-600">{SORT_ARROW[sort]}</span>}
     </th>
+  );
+}
+
+function MakeSelect({
+  value,
+  onChange,
+  options,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = value ? value.split(",").filter(Boolean) : [];
+  const visible = options.filter((m) =>
+    m.toLowerCase().includes(query.trim().toLowerCase()),
+  );
+
+  const toggle = (make: string) => {
+    const next = selected.includes(make)
+      ? selected.filter((m) => m !== make)
+      : [...selected, make];
+    onChange(next.join(","));
+  };
+
+  return (
+    <div className="relative">
+      <button type="button" onClick={() => setOpen((o) => !o)} className={inputCls}>
+        {selected.length === 0
+          ? "Make"
+          : selected.length === 1
+            ? selected[0]
+            : `Make (${selected.length})`}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
+          <div className="absolute z-20 mt-1 w-64 rounded border border-slate-200 bg-white shadow-lg">
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search make…"
+              className="w-full border-b border-slate-100 px-3 py-2 text-sm focus:outline-none"
+            />
+            <div className="max-h-64 overflow-y-auto py-1">
+              {visible.length === 0 && (
+                <p className="px-3 py-2 text-sm text-slate-400">No matches</p>
+              )}
+              {visible.map((m) => (
+                <label
+                  key={m}
+                  className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(m)}
+                    onChange={() => toggle(m)}
+                  />
+                  {m}
+                </label>
+              ))}
+            </div>
+            {selected.length > 0 && (
+              <button
+                type="button"
+                onClick={() => onChange("")}
+                className="w-full border-t border-slate-100 px-3 py-2 text-left text-sm text-slate-500 hover:text-slate-900"
+              >
+                Clear selection
+              </button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
   );
 }
 

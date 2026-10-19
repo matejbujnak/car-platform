@@ -97,7 +97,7 @@ def list_listings(
     session: Session = Depends(get_session),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    make: str | None = Query(None),
+    make: str | None = Query(None, description="comma-separated list of makes"),
     fuel: str | None = Query(None),
     gearbox: str | None = Query(None),
     body: str | None = Query(None),
@@ -117,11 +117,21 @@ def list_listings(
     """Paginated listing feed with filtering and sorting."""
     conditions = []
     if make:
-        conditions.append(Listing.make == make)
+        makes = [m for m in make.split(",") if m]
+        if makes:
+            conditions.append(Listing.make.in_(makes))
     if fuel:
         conditions.append(Listing.fuel == fuel)
     if gearbox:
-        conditions.append(Listing.gearbox == gearbox)
+        # Gearbox values in the data are free-form ("6-st. manualna",
+        # "Automaticka", ...) - match the meaning instead of the exact string.
+        g = gearbox.lower()
+        if "auto" in g:
+            conditions.append(Listing.gearbox.ilike("%auto%"))
+        elif "manu" in g:
+            conditions.append(Listing.gearbox.ilike("%manu%"))
+        else:
+            conditions.append(Listing.gearbox == gearbox)
     if body:
         conditions.append(Listing.body == body)
     if drive:
