@@ -51,7 +51,7 @@ export function VBars({
 /** Horizontal bars - e.g. top makes by number of offers. */
 export function HBars({
   data,
-  color = BAR,
+  color,
   valueFormat = (v: number) => v.toLocaleString("en-US"),
 }: {
   data: ChartPoint[];

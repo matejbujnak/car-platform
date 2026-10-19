@@ -4,6 +4,7 @@ import CarsPage from "./pages/CarsPage";
 import CarPage from "./pages/CarPage";
 import CalculatorPage from "./pages/CalculatorPage";
 import ChartsPage from "./pages/ChartsPage";
+import ComparePage from "./pages/ComparePage";
 import AdminPage from "./pages/AdminPage";
 
 export default function App() {
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="/car/:id" element={<CarPage />} />
           <Route path="/calculator" element={<CalculatorPage />} />
           <Route path="/charts" element={<ChartsPage />} />
+          <Route path="/compare" element={<ComparePage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </main>

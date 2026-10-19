@@ -1,8 +1,19 @@
+import { useEffect, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { getCompareIds } from "../compare";
 
 export default function Header() {
+  const [compareCount, setCompareCount] = useState(0);
+
+  useEffect(() => {
+    const sync = () => setCompareCount(getCompareIds().length);
+    sync();
+    window.addEventListener("compare-changed", sync);
+    return () => window.removeEventListener("compare-changed", sync);
+  }, []);
+
   return (
-    <header className="border-b border-slate-200">
+    <header className="border-b border-slate-200 bg-white">
       <div className="mx-auto flex max-w-none items-center gap-1 px-8 py-3">
         <Link to="/" className="mr-4 text-lg font-bold tracking-tight">
           Car<span className="text-emerald-600">Market</span>Analyzer
@@ -10,6 +21,10 @@ export default function Header() {
         <NavItem to="/" label="Listings" end />
         <NavItem to="/calculator" label="Price calculator" />
         <NavItem to="/charts" label="Charts" />
+        <NavItem
+          to="/compare"
+          label={compareCount > 0 ? `Compare (${compareCount})` : "Compare"}
+        />
         <NavItem to="/admin" label="Admin" />
       </div>
     </header>

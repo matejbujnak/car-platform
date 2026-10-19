@@ -6,6 +6,7 @@ import {
   type Explanation,
   type Listing,
 } from "../api";
+import { getCompareIds, toggleCompare } from "../compare";
 import DealBadge from "../components/DealBadge";
 import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
@@ -42,7 +43,10 @@ export default function CarPage() {
 
       <div className="mt-3 flex flex-wrap items-baseline justify-between gap-3">
         <h1 className="text-2xl font-bold">{car.title}</h1>
-        <DealBadge verdict={car.deal_verdict} />
+        <div className="flex items-center gap-3">
+          <CompareButton id={car.id} />
+          <DealBadge verdict={car.deal_verdict} />
+        </div>
       </div>
       <p className="mt-1 text-sm text-slate-400">
         {car.seller_type === "dealer"
@@ -220,6 +224,23 @@ function Spec({ label, value }: { label: string; value: string }) {
       </dt>
       <dd className="mt-1 text-[15px]">{value}</dd>
     </div>
+  );
+}
+
+/** Adds/removes this car from the side-by-side comparison. */
+function CompareButton({ id }: { id: number }) {
+  const [selected, setSelected] = useState(getCompareIds().includes(id));
+  return (
+    <button
+      onClick={() => setSelected(toggleCompare(id).includes(id))}
+      className={`rounded border px-3 py-1.5 text-sm ${
+        selected
+          ? "border-slate-900 bg-slate-900 text-white"
+          : "border-slate-300 text-slate-600 hover:text-slate-900"
+      }`}
+    >
+      {selected ? "✓ In compare" : "+ Add to compare"}
+    </button>
   );
 }
 

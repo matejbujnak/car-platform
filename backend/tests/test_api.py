@@ -100,3 +100,10 @@ def test_charts(client, session, sample_listing):
     assert body["price_by_year"][0]["label"] == "2020"
     # Placeholder prices are excluded from the charts.
     assert sum(point["value"] for point in body["price_histogram"]) == 1
+
+
+def test_listing_ids_filter(client, session, sample_listing):
+    resp = client.get(f"/api/listings?ids={sample_listing.id}&status=all")
+    assert resp.status_code == 200
+    assert resp.json()["total"] == 1
+    assert client.get("/api/listings?ids=999999&status=all").json()["total"] == 0

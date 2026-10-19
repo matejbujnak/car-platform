@@ -113,6 +113,7 @@ def list_listings(
     year_min: int | None = Query(None, ge=1900),
     year_max: int | None = Query(None, le=2100),
     mileage_max: int | None = Query(None, ge=0),
+    ids: str | None = Query(None, description="comma-separated listing ids"),
     status: str = Query("active", pattern="^(active|sold|all)$"),
     offer: str = Query("sale", pattern="^(sale|rent|all)$"),
     verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
@@ -174,6 +175,12 @@ def list_listings(
         conditions.append(Listing.year <= year_max)
     if mileage_max is not None:
         conditions.append(Listing.mileage_km <= mileage_max)
+    if ids:
+        wanted = [int(i) for i in ids.split(",") if i.strip().isdigit()]
+        if wanted:
+            conditions.append(Listing.id.in_(wanted))
+        else:
+            return {"total": 0, "items": []}
     if status != "all":
         conditions.append(Listing.status == status)
     if offer != "all":
