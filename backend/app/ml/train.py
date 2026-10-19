@@ -248,6 +248,10 @@ def save_artifact(
         )
         session.commit()
 
+    # Predictions for the new model version are computed in the background.
+    from app.scraping import jobs
+
+    jobs.enqueue({"type": "backfill_predictions"})
     print(f"Saved and registered model: {path}")
 
 
