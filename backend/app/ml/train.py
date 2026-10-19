@@ -264,7 +264,8 @@ def train(csv_path: str | None = None) -> None:
 
     # Overall metrics over all tier test sets (for the registry headline).
     overall = metrics(np.concatenate(all_true), np.concatenate(all_pred))
-    default_tier = max(tiers_out, key=lambda t: tiers_out[t]["rows"])
+    # Unknown makes fall back to the middle of the market by default.
+    default_tier = "mid" if "mid" in tiers_out else max(tiers_out, key=lambda t: tiers_out[t]["rows"])
     print(f"Overall: {overall} (default tier: {default_tier})")
 
     save_artifact(tiers_out, tier_of, default_tier, overall, len(df))
