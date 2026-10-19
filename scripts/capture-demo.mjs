@@ -44,14 +44,14 @@ try {
 
   await step("filter makes", async () => {
     await page.locator("button", { hasText: "Make" }).first().click();
-    await page.locator("input[placeholder*='Search']").fill("škoda");
+    await page.locator("input[placeholder*='Search make']").fill("škoda");
     await pause(400);
     await page.locator("input[type=checkbox]").first().check();
-    await page.locator("input[placeholder*='Search']").fill("volkswagen");
+    await page.locator("input[placeholder*='Search make']").fill("volkswagen");
     await pause(400);
     await page.locator("input[type=checkbox]").first().check();
     await pause(300);
-    await page.mouse.click(700, 60); // close the dropdown
+    await page.keyboard.press("Escape"); // close the dropdown
     await page.locator("button", { hasText: "Filter" }).first().click();
     await pause(1500);
     await page.screenshot({ path: `${OUT}/03-filtered.png` });

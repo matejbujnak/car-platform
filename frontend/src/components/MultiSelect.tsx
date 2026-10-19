@@ -36,7 +36,12 @@ export default function MultiSelect({
     options.find(([, v]) => v === optionValue)?.[0] ?? optionValue;
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onKeyDown={(e) => {
+        if (e.key === "Escape") setOpen(false);
+      }}
+    >
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}

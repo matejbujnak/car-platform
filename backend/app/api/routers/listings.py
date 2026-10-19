@@ -176,9 +176,13 @@ def list_listings(
         conditions.append(Listing.status == status)
 
     mv = active_model(session)
+    if mv is None:
+        # No model yet: fall back to plain browsing (sorting by prediction
+        # needs the cache).
+        verdict = None
+        sort = "newest"
+
     needs_prediction = verdict is not None or sort.startswith(("deal_", "fair_", "profit_"))
-    if needs_prediction and mv is None:
-        return {"total": 0, "items": []}
 
     query = select(Listing)
     count_query = select(func.count()).select_from(Listing)
@@ -186,22 +190,27 @@ def list_listings(
         pred_join = (Prediction.listing_id == Listing.id) & (
             Prediction.model_version_id == mv.id
         )
-        query = query.join(Prediction, pred_join)
-        count_query = count_query.join(Prediction, pred_join)
         if verdict is not None:
+            # A verdict filter narrows the result set.
+            query = query.join(Prediction, pred_join)
+            count_query = count_query.join(Prediction, pred_join)
             conditions.append(Prediction.deal_verdict == verdict)
+        else:
+            # Sorting only: keep every row - ones whose prediction is not
+            # cached yet simply sort to the end instead of disappearing.
+            query = query.outerjoin(Prediction, pred_join)
 
     for condition in conditions:
         query = query.where(condition)
         count_query = count_query.where(condition)
 
-    if sort.startswith("deal_"):
+    if sort.startswith("deal_") and mv is not None:
         order = (
             Prediction.deal_score.desc().nulls_last()
             if sort == "deal_best"
             else Prediction.deal_score.asc().nulls_last()
         )
-    elif sort.startswith("profit_"):
+    elif sort.startswith("profit_") and mv is not None:
         # Profit in EUR: fair price minus asking price (positive = good deal).
         # Rows without a deal verdict (placeholder prices) go last.
         profit = Prediction.fair_price_eur - Listing.price_eur
@@ -209,7 +218,7 @@ def list_listings(
             Prediction.deal_score.is_(None),
             nullslast(desc(profit) if sort == "profit_best" else asc(profit)),
         )
-    elif sort.startswith("fair_"):
+    elif sort.startswith("fair_") and mv is not None:
         order = (
             Prediction.fair_price_eur.asc().nulls_last()
             if sort == "fair_low"
