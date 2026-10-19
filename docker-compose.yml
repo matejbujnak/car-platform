@@ -28,8 +28,11 @@ services:
     command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     environment: &app_env
       - APP_ENV=production
-      - DATABASE_URL=postgresql://car_platform:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres_db:5432/car_platform
-      - REDIS_URL=redis://redis:6379/0
+      # Container names (not service names) are used as hosts: the network is
+      # shared with other projects where generic names like "postgres_db"
+      # resolve to different containers.
+      - DATABASE_URL=postgresql://car_platform:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@car-platform-postgres:5432/car_platform
+      - REDIS_URL=redis://car-platform-redis:6379/0
       - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY in .env}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
