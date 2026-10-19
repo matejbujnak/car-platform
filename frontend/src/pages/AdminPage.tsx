@@ -151,7 +151,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                   {m.metrics?.r2 ?? "—"}
                 </td>
                 <td className="px-3 py-2.5 text-right text-slate-600">
-                  {m.metrics ? `± ${formatPrice(m.metrics.conformal_q)}` : "—"}
+                  {m.metrics
+                    ? m.metrics.conformal_q_pct != null
+                      ? `± ${m.metrics.conformal_q_pct}%`
+                      : `± ${formatPrice(m.metrics.conformal_q)}`
+                    : "—"}
                 </td>
                 <td
                   className={`px-3 py-2.5 text-sm font-medium ${

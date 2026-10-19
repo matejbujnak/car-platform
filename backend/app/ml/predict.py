@@ -3,6 +3,7 @@
 from functools import lru_cache
 
 import joblib
+import numpy as np
 import pandas as pd
 from sqlmodel import Session, select
 
@@ -41,18 +42,34 @@ def active_artifact(session: Session) -> dict | None:
 
 
 def predict_prices(artifact: dict, cars: list[dict]) -> list[dict]:
-    """Fair price and prediction interval for each car (raw listing fields)."""
+    """Fair price and prediction interval for each car (raw listing fields).
+
+    Newer artifacts predict log prices and carry a relative conformal error
+    (conformal_q_log) - the interval then scales with the price. Older
+    artifacts predict prices directly with a fixed +/- EUR interval.
+    """
     frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
-    prices = artifact["pipeline"].predict(frame[CATEGORICAL + NUMERIC])
-    q = float(artifact["conformal_q"])
-    return [
-        {
-            "fair_price_eur": round(float(price)),
-            "interval_low_eur": round(max(float(price) - q, 0)),
-            "interval_high_eur": round(float(price) + q),
+    raw = artifact["pipeline"].predict(frame[CATEGORICAL + NUMERIC])
+    return [_prediction(artifact, value) for value in raw]
+
+
+def _prediction(artifact: dict, value: float) -> dict:
+    if artifact.get("log_target"):
+        price = float(np.exp(value))
+        q = float(artifact["conformal_q_log"])
+        return {
+            "fair_price_eur": round(price),
+            "interval_low_eur": round(price * np.exp(-q)),
+            "interval_high_eur": round(price * np.exp(q)),
         }
-        for price in prices
-    ]
+    # Legacy artifact: absolute prices with a fixed interval.
+    price = float(value)
+    q = float(artifact.get("conformal_q", 0.0))
+    return {
+        "fair_price_eur": round(price),
+        "interval_low_eur": round(max(price - q, 0)),
+        "interval_high_eur": round(price + q),
+    }
 
 
 def predict_price(artifact: dict, car: dict) -> dict:

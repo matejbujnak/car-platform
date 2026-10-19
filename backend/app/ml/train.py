@@ -150,24 +150,30 @@ def train(csv_path: str | None = None) -> None:
             "Scrape more data first (POST /api/admin/scrape/full)."
         )
 
-    y = df[TARGET]
+    # The model learns LOG prices: errors are then relative (the same
+    # percentage accuracy on cheap and expensive cars), which matters a lot
+    # for cheap cars where absolute errors would dominate.
+    y_log = np.log(df[TARGET])
+    y_price = df[TARGET]
     x = df[CATEGORICAL + NUMERIC]
 
     # 60% train / 20% calibration (conformal) / 20% test.
-    x_train, x_test, y_train, y_test = train_test_split(
-        x, y, test_size=0.20, random_state=RANDOM_STATE
+    x_train, x_test, y_train_log, y_test_log, y_train_price, y_test_price = (
+        train_test_split(x, y_log, y_price, test_size=0.20, random_state=RANDOM_STATE)
     )
-    x_train, x_cal, y_train, y_cal = train_test_split(
-        x_train, y_train, test_size=0.25, random_state=RANDOM_STATE
+    x_train, x_cal, y_train_log, y_cal_log, y_train_price, y_cal_price = (
+        train_test_split(
+            x_train, y_train_log, y_train_price, test_size=0.25, random_state=RANDOM_STATE
+        )
     )
     print(f"Split: {len(x_train):,} train / {len(x_cal):,} calibration / {len(x_test):,} test")
 
     results: dict[str, dict] = {}
     fitted: dict[str, Pipeline] = {}
     for name, pipeline in build_pipelines().items():
-        pipeline.fit(x_train, y_train)
-        pred = pipeline.predict(x_test)
-        results[name] = metrics(y_test.to_numpy(), pred)
+        pipeline.fit(x_train, y_train_log)
+        pred_price = np.exp(pipeline.predict(x_test))
+        results[name] = metrics(y_test_price.to_numpy(), pred_price)
         fitted[name] = pipeline
         print(f"{name:>10}: {results[name]}")
 
@@ -175,19 +181,22 @@ def train(csv_path: str | None = None) -> None:
     best = fitted[best_name]
     print(f"Best model: {best_name}")
 
-    # Split conformal prediction: q = residual quantile on the calibration set.
-    cal_residuals = np.abs(y_cal.to_numpy() - best.predict(x_cal))
-    conformal_q = float(np.quantile(cal_residuals, INTERVAL_COVERAGE))
-    print(f"{int(INTERVAL_COVERAGE * 100)}% interval: +/- {conformal_q:,.0f} EUR")
+    # Split conformal prediction in log space: q is a RELATIVE error, so the
+    # interval scales with the price (narrow for cheap cars, wide for expensive
+    # ones) instead of being a fixed +/- EUR amount.
+    cal_residuals = np.abs(y_cal_log.to_numpy() - best.predict(x_cal))
+    conformal_q_log = float(np.quantile(cal_residuals, INTERVAL_COVERAGE))
+    conformal_pct = (np.exp(conformal_q_log) - 1) * 100
+    print(f"{int(INTERVAL_COVERAGE * 100)}% interval: +/- {conformal_pct:.1f}% of the fair price")
 
-    save_artifact(best, best_name, results[best_name], conformal_q, len(df))
+    save_artifact(best, best_name, results[best_name], conformal_q_log, len(df))
 
 
 def save_artifact(
     pipeline: Pipeline,
     model_name: str,
     metrics_: dict[str, float],
-    conformal_q: float,
+    conformal_q_log: float,
     rows: int,
 ) -> None:
     os.makedirs(config.MODEL_DIR, exist_ok=True)
@@ -200,9 +209,10 @@ def save_artifact(
             "pipeline": pipeline,
             "model_name": model_name,
             "metrics": metrics_,
-            "conformal_q": conformal_q,
+            "conformal_q_log": conformal_q_log,
             "features": {"numeric": NUMERIC, "categorical": CATEGORICAL},
             "trained_at": stamp,
+            "log_target": True,
         },
         path,
     )
@@ -218,7 +228,10 @@ def save_artifact(
                 name=name,
                 artifact_path=str(path),
                 dataset_rows=rows,
-                metrics={**metrics_, "conformal_q": round(conformal_q, 1)},
+                metrics={
+                    **metrics_,
+                    "conformal_q_pct": round((np.exp(conformal_q_log) - 1) * 100, 1),
+                },
                 is_active=True,
             )
         )
