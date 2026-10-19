@@ -91,3 +91,12 @@ def test_stats_and_models(client, session, sample_listing):
     assert stats["listings_total"] == 1
     assert "Skoda" in stats["makes"]
     assert client.get("/api/stats/models?make=Skoda").json() == ["Octavia"]
+
+
+def test_charts(client, session, sample_listing):
+    body = client.get("/api/charts").json()
+    assert body["price_histogram"]
+    assert body["top_makes"][0]["label"] == "Skoda"
+    assert body["price_by_year"][0]["label"] == "2020"
+    # Placeholder prices are excluded from the charts.
+    assert sum(point["value"] for point in body["price_histogram"]) == 1

@@ -3,6 +3,7 @@ import Header from "./components/Header";
 import CarsPage from "./pages/CarsPage";
 import CarPage from "./pages/CarPage";
 import CalculatorPage from "./pages/CalculatorPage";
+import ChartsPage from "./pages/ChartsPage";
 import AdminPage from "./pages/AdminPage";
 
 export default function App() {
@@ -14,6 +15,7 @@ export default function App() {
           <Route path="/" element={<CarsPage />} />
           <Route path="/car/:id" element={<CarPage />} />
           <Route path="/calculator" element={<CalculatorPage />} />
+          <Route path="/charts" element={<ChartsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </main>

@@ -108,6 +108,26 @@ export function fetchStats(): Promise<Stats> {
   return request("/api/stats");
 }
 
+export interface ChartPoint {
+  label: string;
+  value: number;
+  avg_price?: number;
+}
+
+export interface ChartsData {
+  price_histogram: ChartPoint[];
+  mileage_price: ChartPoint[];
+  price_by_year: ChartPoint[];
+  top_makes: ChartPoint[];
+  bodies: ChartPoint[];
+  fuels: ChartPoint[];
+  verdicts: ChartPoint[];
+}
+
+export function fetchCharts(): Promise<ChartsData> {
+  return request("/api/charts");
+}
+
 /** Distinct model names, optionally limited to selected makes. */
 export function fetchModelNames(make?: string): Promise<string[]> {
   const qs = make ? `?make=${encodeURIComponent(make)}` : "";

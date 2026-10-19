@@ -9,6 +9,7 @@ export default function Header() {
         </Link>
         <NavItem to="/" label="Listings" end />
         <NavItem to="/calculator" label="Price calculator" />
+        <NavItem to="/charts" label="Charts" />
         <NavItem to="/admin" label="Admin" />
       </div>
     </header>
