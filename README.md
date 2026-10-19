@@ -137,6 +137,21 @@ scripts/            demo capture (Playwright) and GIF maker
 docs/               demo GIF + screenshots (auto-refreshed by CI)
 ```
 
+## Data source
+
+Listings are collected from [autobazar.eu](https://www.autobazar.eu). The data
+belongs to the source site and its users; this project only stores factual
+vehicle parameters (make, model, year, mileage, power, price) together with a
+link to the original listing. Photos, listing texts and personal contact
+details are **not** collected or republished.
+
+The scraper is deliberately polite: it respects `robots.txt`, identifies
+itself with a contact address, limits its request rate and crawls once a day.
+
+If you operate the source site and want any data removed, please contact
+**bujnak.matko@gmail.com** — listings will be deleted immediately and scraping
+can be switched off on request.
+
 ## License
 
 [MIT](LICENSE) © 2026 Matej Bujnak

@@ -38,7 +38,10 @@ log = logging.getLogger(__name__)
 
 BASE_URL = "https://www.autobazar.eu"
 LISTINGS_PATH = "/vysledky/osobne-vozidla/"
-USER_AGENT = "car-market-analyzer/1.0 (open-source research project; respects robots.txt)"
+USER_AGENT = (
+    "car-market-analyzer/1.0 (open-source research project; "
+    "contact: bujnak.matko@gmail.com; respects robots.txt)"
+)
 MAX_PAGE = 50
 PER_PAGE = 20
 
