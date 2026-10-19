@@ -1,0 +1,5 @@
+# train.py caps thread counts via environment variables BEFORE importing
+# numpy/sklearn/lightgbm (they read them at import time), so its imports
+# deliberately come after that setup.
+[lint.per-file-ignores]
+"app/ml/train.py" = ["E402"]

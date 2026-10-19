@@ -44,7 +44,10 @@ def active_artifact(session: Session) -> dict | None:
     mv = active_model(session)
     if mv is None:
         return None
-    return load_artifact(mv.artifact_path)
+    try:
+        return load_artifact(mv.artifact_path)
+    except Exception:  # noqa: BLE001 - a broken artifact must not break the API
+        return None
 
 
 def model_for(artifact: dict, car: dict) -> dict:

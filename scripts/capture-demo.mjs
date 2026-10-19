@@ -4,6 +4,7 @@
 //
 // Used by scripts/make-gif.sh and the "Demo capture" GitHub workflow.
 // Every step is wrapped so one failed interaction never kills the capture.
+// The pacing is deliberately slow so the GIF is easy to follow.
 
 import { chromium } from "playwright";
 
@@ -32,46 +33,71 @@ try {
   await step("listings", async () => {
     await page.goto(`${BASE}/`, { waitUntil: "networkidle" });
     await page.waitForSelector("tbody tr", { timeout: 20000 });
-    await pause(1500);
+    await pause(3000);
     await page.screenshot({ path: `${OUT}/01-listings.png` });
+    // Show the content: slowly scroll through the feed and back.
+    await page.mouse.wheel(0, 700);
+    await pause(2500);
+    await page.mouse.wheel(0, 700);
+    await pause(2500);
+    await page.mouse.wheel(0, -1400);
+    await pause(2000);
   });
 
   await step("sort by profit", async () => {
     await page.locator("th", { hasText: "Profit €" }).first().click();
-    await pause(1500);
+    await pause(4000);
     await page.screenshot({ path: `${OUT}/02-sorted.png` });
+    await page.mouse.wheel(0, 600);
+    await pause(2500);
+    await page.mouse.wheel(0, -600);
+    await pause(1500);
   });
 
   await step("filter makes", async () => {
     await page.locator("button", { hasText: "Make" }).first().click();
-    await page.locator("input[placeholder*='Search make']").fill("škoda");
-    await pause(400);
-    await page.locator("input[type=checkbox]").first().check();
-    await page.locator("input[placeholder*='Search make']").fill("volkswagen");
-    await pause(400);
-    await page.locator("input[type=checkbox]").first().check();
-    await pause(300);
-    await page.keyboard.press("Escape"); // close the dropdown
-    await page.locator("button", { hasText: "Filter" }).first().click();
     await pause(1500);
+    await page.locator("input[placeholder*='Search make']").fill("škoda");
+    await pause(1500);
+    await page.locator("input[type=checkbox]").first().check();
+    await pause(1000);
+    await page.locator("input[placeholder*='Search make']").fill("volkswagen");
+    await pause(1500);
+    await page.locator("input[type=checkbox]").first().check();
+    await pause(1000);
+    await page.keyboard.press("Escape"); // close the dropdown
+    await pause(800);
+    await page.locator("button", { hasText: "Filter" }).first().click();
+    await pause(5000);
     await page.screenshot({ path: `${OUT}/03-filtered.png` });
   });
 
   await step("car detail", async () => {
     await page.locator("tbody tr").first().click();
     await page.waitForSelector("text=Price analysis", { timeout: 15000 });
-    await pause(1500);
+    await pause(4000);
     await page.screenshot({ path: `${OUT}/04-detail.png` });
+    // Show the price breakdown and similar offers.
+    await page.mouse.wheel(0, 600);
+    await pause(3000);
+    await page.mouse.wheel(0, 700);
+    await pause(3000);
+    await page.mouse.wheel(0, -1300);
+    await pause(1500);
   });
 
   await step("calculator", async () => {
     await page.goto(`${BASE}/calculator`, { waitUntil: "networkidle" });
-    await pause(800);
+    await pause(2500);
     await page.locator("button", { hasText: "Estimate fair price" }).click();
     // First prediction after a deploy can be slow (model loads lazily).
     await page.waitForSelector("text=typical range", { timeout: 60000 });
-    await pause(1500);
+    await pause(4000);
     await page.screenshot({ path: `${OUT}/05-calculator.png` });
+    await page.mouse.wheel(0, 400);
+    await pause(2500);
+    await page.mouse.wheel(0, -400);
+    await pause(1500);
   });
 } finally {
   await context.close();

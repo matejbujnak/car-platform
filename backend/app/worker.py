@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app import config
-from app.db.models import Listing, ModelVersion, Prediction, ScrapeRun, utcnow
+from app.db.models import Listing, Prediction, ScrapeRun, utcnow
 from app.db.session import engine
 from app.ml.features import plausible_price
 from app.ml.predict import CAR_FIELDS, active_model, deal_verdict, load_artifact, predict_prices

@@ -11,9 +11,10 @@ if [ -z "$WEBM" ]; then
   exit 1
 fi
 
-# Two-pass palette GIF: good quality at a reasonable size.
+# Two-pass palette GIF: good quality at a reasonable size. The demo is
+# recorded deliberately slowly; 6 fps keeps the file readable and small.
 ffmpeg -y -loglevel error -i "$WEBM" \
-  -vf "fps=7,scale=900:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4" \
+  -vf "fps=6,scale=900:-1:flags=lanczos,split[s0][s1];[s0]palettegen=stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4" \
   "$OUT_DIR/demo.gif"
 
 echo "Wrote $OUT_DIR/demo.gif ($(du -h "$OUT_DIR/demo.gif" | cut -f1))"
