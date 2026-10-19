@@ -1,0 +1,110 @@
+# Production stack. Runs behind a reverse proxy (e.g. Nginx Proxy Manager)
+# on an external Docker network - see README "Deployment".
+#
+#   cp .env.example .env    # fill in real values first!
+#   docker compose up -d --build
+#
+# The frontend serves the app and proxies /api to the backend, so the browser
+# talks to a single origin. Only the frontend needs to be reachable from the
+# reverse proxy; database and Redis are internal to the Docker network.
+
+services:
+  frontend:
+    build: ./frontend
+    container_name: car-platform-frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    networks:
+      - app_net
+    depends_on:
+      - backend
+
+  backend:
+    build: ./backend
+    container_name: car-platform-backend
+    restart: unless-stopped
+    # Apply database migrations, then start the API server.
+    command: sh -c "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    environment: &app_env
+      - APP_ENV=production
+      - DATABASE_URL=postgresql://car_platform:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres_db:5432/car_platform
+      - REDIS_URL=redis://redis:6379/0
+      - SECRET_KEY=${SECRET_KEY:?set SECRET_KEY in .env}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?set ADMIN_PASSWORD in .env}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
+      - MODEL_DIR=/models
+      - SCRAPE_MAX_PER_HOUR=${SCRAPE_MAX_PER_HOUR:-500}
+      - SCRAPE_QUICK_MAX_PAGES=${SCRAPE_QUICK_MAX_PAGES:-5}
+      - SCRAPE_MIN_DELAY_SECONDS=${SCRAPE_MIN_DELAY_SECONDS:-5}
+      - SCRAPE_MAX_DELAY_SECONDS=${SCRAPE_MAX_DELAY_SECONDS:-9}
+      - SCRAPE_SCHEDULE_HOUR=${SCRAPE_SCHEDULE_HOUR:-22}
+      - SCHEDULE_TZ=${SCHEDULE_TZ:-UTC}
+    volumes:
+      - models_data:/models
+    expose:
+      - "8000"
+    networks:
+      - app_net
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  worker:
+    build: ./backend
+    container_name: car-platform-worker
+    restart: unless-stopped
+    # Same image as the API, different command: background jobs (scraping,
+    # training, prediction cache).
+    command: python -m app.worker
+    environment: *app_env
+    volumes:
+      - models_data:/models
+    networks:
+      - app_net
+    depends_on:
+      postgres_db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  postgres_db:
+    image: postgres:16-alpine
+    container_name: car-platform-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: car_platform
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: car_platform
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U car_platform -d car_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - app_net
+
+  redis:
+    image: redis:7-alpine
+    container_name: car-platform-redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks:
+      - app_net
+
+volumes:
+  postgres_data:
+  redis_data:
+  models_data:
+
+networks:
+  # Shared with the reverse proxy so it can reach the frontend container.
+  app_net:
+    external: true
+    name: ${DOCKER_NETWORK:-home_network}

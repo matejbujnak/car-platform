@@ -32,6 +32,28 @@ BACKEND_PORT=8001 POSTGRES_PORT=5433 REDIS_PORT=6380 \
   docker compose -f docker-compose.dev.yml up
 ```
 
+## Deployment
+
+The production stack runs behind a reverse proxy (this project is deployed
+with Nginx Proxy Manager) on a shared Docker network.
+
+1. Create the network once: `docker network create home_network`
+2. Configure secrets: `cp .env.example .env` and fill in real values
+   (`openssl rand -hex 32` for `SECRET_KEY`).
+3. Start: `docker compose up -d --build`
+   Migrations run automatically on startup and the admin account is seeded
+   from `.env`.
+4. Point the reverse proxy at the `car-platform-frontend` container (port 80).
+   It serves the app and proxies `/api` to the backend, so no CORS setup is
+   needed for the browser.
+
+Notes:
+
+- The database and Redis are not published to the host - only the frontend is
+  reachable through the reverse proxy.
+- Background scraping runs in the `car-platform-worker` container (daily
+  schedule, see `SCRAPE_SCHEDULE_HOUR`). Check progress in the admin UI.
+
 ## Scraping
 
 The scraper runs in a separate worker container and consumes jobs from a queue.

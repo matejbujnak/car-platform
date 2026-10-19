@@ -42,6 +42,7 @@ def _to_listing(row: dict) -> dict | None:
         return None
 
     price = row.get("last_price_eur") or row.get("price_eur")
+    title = (row.get("title") or "").strip() or f"{make} {model}, {year}"
 
     def _num(key: str):
         val = row.get(key)
@@ -55,7 +56,7 @@ def _to_listing(row: dict) -> dict | None:
     return {
         "source_id": source_id,
         "url": url,
-        "title": f"{make} {model}, {year}",
+        "title": title,
         "make": make,
         "model": model,
         "year": year,
