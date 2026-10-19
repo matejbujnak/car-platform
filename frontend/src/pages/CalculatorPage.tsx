@@ -191,7 +191,10 @@ export default function CalculatorPage() {
                 />
               </div>
               <div className="mt-8">
-                <ExplanationList items={result.explanation} />
+                <ExplanationList
+                  items={result.explanation}
+                  baseline={result.baseline_price_eur}
+                />
               </div>
               {result.deal_score != null && (
                 <p className="mt-6 text-sm text-slate-600">

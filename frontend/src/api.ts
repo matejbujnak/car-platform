@@ -35,6 +35,7 @@ export interface Listing {
   deal_verdict?: Verdict | null;
   deal_score?: number | null;
   explanation?: Explanation[];
+  baseline_price_eur?: number;
 }
 
 export interface Stats {
@@ -53,6 +54,7 @@ export interface Prediction {
   deal_verdict?: Verdict;
   deal_score?: number;
   explanation?: Explanation[];
+  baseline_price_eur?: number;
 }
 
 export interface ScrapeRun {

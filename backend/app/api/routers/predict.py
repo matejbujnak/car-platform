@@ -44,7 +44,9 @@ def predict(
 
     prediction = predict_prices(artifact, [car.model_dump()])[0]
     result = {**prediction, "model_name": artifact["model_name"]}
-    result["explanation"] = explain_instance(artifact, car.model_dump())
+    explained = explain_instance(artifact, car.model_dump())
+    result["explanation"] = explained["explanation"]
+    result["baseline_price_eur"] = explained["baseline_price_eur"]
     if car.price_eur is not None:
         verdict, score = deal_verdict(car.price_eur, prediction)
         result["deal_verdict"] = verdict

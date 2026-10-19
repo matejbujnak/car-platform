@@ -73,35 +73,51 @@ def _shap_values(artifact: dict, cars: list[dict]) -> tuple[np.ndarray, float, n
 
 
 def _group_impacts(
-    artifact: dict, shap_row: np.ndarray, fair_price: float, car: dict
+    artifact: dict, shap_row: np.ndarray, baseline: float, car: dict
 ) -> list[dict]:
+    """Additive EUR impacts relative to the baseline car.
+
+    The model is multiplicative in price space (log target): every feature is a
+    factor exp(shap). Applying the factors one by one (largest first) gives
+    increments that sum EXACTLY to fair_price - baseline.
+    """
     totals: dict[str, float] = {}
     for (feature, _category), value in zip(_feature_columns(artifact), shap_row):
         group, _ = FEATURE_GROUPS.get(feature, (feature, feature))
         totals[group] = totals.get(group, 0.0) + float(value)
 
     value_fields = {group: field for group, field in FEATURE_GROUPS.values()}
+    value = baseline
     items = []
-    for group, total in totals.items():
-        if abs(total) < 1e-9:
+    for group, shap in sorted(totals.items(), key=lambda kv: abs(kv[1]), reverse=True):
+        if abs(shap) < 1e-9:
             continue
+        factor = float(np.exp(shap))
         items.append(
             {
                 "feature": group,
                 "value": str(car.get(value_fields.get(group, group), "—") or "—"),
-                # Multiplicative SHAP -> EUR impact on the fair price.
-                "impact_eur": round(fair_price * (np.exp(total) - 1)),
+                "impact_eur": round(value * (factor - 1)),
             }
         )
-    items.sort(key=lambda item: abs(item["impact_eur"]), reverse=True)
+        value *= factor
     return items
 
 
-def explain_instance(artifact: dict, car: dict, top: int = 6) -> list[dict]:
-    """Top reasons why this car's fair price is what it is (EUR impact)."""
-    shap, _base, log_pred = _shap_values(artifact, [car])
-    fair_price = float(np.exp(float(log_pred[0])))
-    return _group_impacts(artifact, shap[0], fair_price, car)[:top]
+def explain_instance(artifact: dict, car: dict) -> dict:
+    """Why this car's fair price is what it is.
+
+    Returns the baseline price of a comparable average car plus per-feature
+    EUR impacts; baseline + all impacts = fair price.
+    """
+    shap, base, log_pred = _shap_values(artifact, [car])
+    baseline = float(np.exp(float(base)))
+    items = _group_impacts(artifact, shap[0], baseline, car)
+    return {
+        "baseline_price_eur": round(baseline),
+        "fair_price_eur": round(float(np.exp(float(log_pred[0])))),
+        "explanation": items,
+    }
 
 
 def global_importance(artifact: dict, cars: list[dict], top: int = 12) -> list[list]:

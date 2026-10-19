@@ -239,9 +239,12 @@ def get_listing(listing_id: int, session: Session = Depends(get_session)) -> dic
     if row is None:
         raise HTTPException(status_code=404, detail="Listing not found")
     item = _enriched([row], session)[0]
-    # Local explanation: which features drive this car's fair price.
+    # Local explanation: baseline price + per-feature impacts (they add up to
+    # the fair price).
     artifact = active_artifact(session)
     if artifact is not None:
         car = {k: getattr(row, k) for k in CAR_FIELDS}
-        item["explanation"] = explain_instance(artifact, car)
+        explained = explain_instance(artifact, car)
+        item["explanation"] = explained["explanation"]
+        item["baseline_price_eur"] = explained["baseline_price_eur"]
     return item

@@ -1,7 +1,17 @@
 import type { Explanation } from "../api";
+import { formatPrice } from "./format";
 
-/** Top factors that push the fair price up or down (TreeSHAP, in EUR). */
-export default function ExplanationList({ items }: { items?: Explanation[] }) {
+interface Props {
+  items?: Explanation[];
+  /** Price of a comparable average car - the starting point of the breakdown. */
+  baseline?: number;
+}
+
+/**
+ * How the fair price is built up: baseline car plus per-feature impacts.
+ * The rows add up exactly to the fair price.
+ */
+export default function ExplanationList({ items, baseline }: Props) {
   if (!items?.length) return null;
   return (
     <div>
@@ -9,6 +19,12 @@ export default function ExplanationList({ items }: { items?: Explanation[] }) {
         What drives the price
       </h3>
       <ul className="mt-2 max-w-md">
+        {baseline != null && (
+          <li className="flex items-baseline justify-between border-b border-slate-100 py-1.5 text-sm text-slate-400">
+            <span>Average comparable car</span>
+            <span>{formatPrice(baseline)}</span>
+          </li>
+        )}
         {items.map((item) => (
           <li
             key={item.feature}

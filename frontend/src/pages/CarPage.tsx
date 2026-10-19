@@ -101,7 +101,10 @@ export default function CarPage() {
             />
           </div>
           <div className="mt-8">
-            <ExplanationList items={car.explanation} />
+            <ExplanationList
+              items={car.explanation}
+              baseline={car.baseline_price_eur}
+            />
           </div>
         </section>
       )}
