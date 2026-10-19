@@ -55,6 +55,7 @@ from app.ml.features import (
     PRICE_MAX,
     PRICE_MIN,
     add_features,
+    build_segment_stats,
     simplify_gearbox,
 )
 from sqlmodel import Session, select
@@ -204,12 +205,17 @@ def metrics(y_true, y_pred) -> dict[str, float]:
 # --- training ---------------------------------------------------------------
 
 def train(csv_path: str | None = None) -> None:
-    df = add_split_bucket(add_features(clean(load_data(csv_path)), YEAR_MAX))
+    df = add_split_bucket(clean(load_data(csv_path)))
     if len(df) < 200:
         raise SystemExit(
             f"Need at least 200 cleaned rows to train, got {len(df)}. "
             "Scrape more data first (POST /api/admin/scrape/full)."
         )
+
+    # Market snapshot computed from the TRAIN rows only - no test leakage, and
+    # the same numbers travel inside the artifact to the serving side.
+    segment_stats = build_segment_stats(df[df["_bucket"] >= 4])
+    df = add_features(df, YEAR_MAX, segment_stats)
 
     tier_of = assign_tiers(df)
     df["_tier"] = df["make"].map(tier_of)
@@ -267,7 +273,7 @@ def train(csv_path: str | None = None) -> None:
         conformal_q_log = float(np.quantile(cal_residuals, INTERVAL_COVERAGE))
 
         sample = sub[RAW_FIELDS].sample(min(2000, len(sub)), random_state=RANDOM_STATE)
-        importance = global_importance(best, sample.to_dict("records"))
+        importance = global_importance(best, sample.to_dict("records"), segment_stats)
 
         print(f"tier '{tier}' ({len(sub):,} rows): {best_name} {results[best_name]} "
               f"interval +/- {(np.exp(conformal_q_log) - 1) * 100:.1f}%")
@@ -290,7 +296,7 @@ def train(csv_path: str | None = None) -> None:
     default_tier = "mid" if "mid" in tiers_out else max(tiers_out, key=lambda t: tiers_out[t]["rows"])
     print(f"Overall: {overall} (default tier: {default_tier})")
 
-    save_artifact(tiers_out, tier_of, default_tier, overall, len(df))
+    save_artifact(tiers_out, tier_of, default_tier, overall, len(df), segment_stats)
 
 
 def save_artifact(
@@ -299,6 +305,7 @@ def save_artifact(
     default_tier: str,
     overall: dict[str, float],
     rows: int,
+    segment_stats: dict,
 ) -> None:
     os.makedirs(config.MODEL_DIR, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -319,6 +326,7 @@ def save_artifact(
             },
             "make_tier": tier_of,
             "default_tier": default_tier,
+            "segment_stats": segment_stats,
             "global_importance": tiers_out[default_tier]["importance"],
             "trained_at": stamp,
         },

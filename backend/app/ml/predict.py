@@ -84,7 +84,9 @@ def _prediction(model: dict, value: float) -> dict:
 
 def predict_prices(artifact: dict, cars: list[dict]) -> list[dict]:
     """Fair price and prediction interval for each car (raw listing fields)."""
-    frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
+    frame = add_features(
+        pd.DataFrame(cars), CURRENT_YEAR, artifact.get("segment_stats")
+    )
     out: list[dict | None] = [None] * len(cars)
 
     # Group cars by the model that prices them (tier routing) and predict in

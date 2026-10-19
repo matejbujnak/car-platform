@@ -11,7 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pandas as pd
 
-from app.ml.features import CATEGORICAL, CURRENT_YEAR, NUMERIC, add_features
+from app.ml.features import CATEGORICAL, CURRENT_YEAR, NUMERIC, add_features, segment_row
 
 # Raw listing fields a prediction needs (kept in sync with app.ml.predict).
 RAW_FIELDS = [
@@ -37,6 +37,9 @@ FEATURE_GROUPS = {
     "body": ("Body", "body"),
     "drive": ("Drive", "drive"),
     "seller_type": ("Seller", "seller_type"),
+    "segment_median_price": ("Segment median", None),
+    "segment_supply": ("Market supply", None),
+    "mileage_vs_segment": ("Mileage vs market", None),
 }
 
 
@@ -53,13 +56,15 @@ def _feature_columns(artifact: dict) -> list[tuple[str, str | None]]:
     return columns
 
 
-def _shap_values(artifact: dict, cars: list[dict]) -> tuple[np.ndarray, float, np.ndarray]:
+def _shap_values(
+    artifact: dict, cars: list[dict], segment_stats: dict | None = None
+) -> tuple[np.ndarray, float, np.ndarray]:
     """TreeSHAP values in log-price space: (contributions, base, log predictions).
 
     Accepts a saved artifact dict or a bare sklearn pipeline.
     """
     pipeline = artifact["pipeline"] if isinstance(artifact, dict) else artifact
-    frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
+    frame = add_features(pd.DataFrame(cars), CURRENT_YEAR, segment_stats)
     transformed = pipeline.named_steps["pre"].transform(frame[CATEGORICAL + NUMERIC])
     booster = pipeline.named_steps["model"].booster_
     raw = booster.predict(transformed, pred_contrib=True)
@@ -72,8 +77,21 @@ def _shap_values(artifact: dict, cars: list[dict]) -> tuple[np.ndarray, float, n
     return shap, base, np.asarray(log_pred).reshape(-1)
 
 
+def _market_display(car: dict, stats: dict | None) -> dict[str, str]:
+    """Human-readable market context for the explanation list."""
+    seg = segment_row(stats, car.get("make"), car.get("model"))
+    if not seg:
+        return {}
+    ratio = ((car.get("mileage_km") or 0) + 1) / ((seg.get("median_mileage") or 0) + 1)
+    return {
+        "Segment median": f"{seg['median_price']:,.0f} €",
+        "Market supply": f"{seg['supply']} offers",
+        "Mileage vs market": f"{ratio:.2f}x",
+    }
+
+
 def _group_impacts(
-    artifact: dict, shap_row: np.ndarray, baseline: float, car: dict
+    artifact: dict, shap_row: np.ndarray, baseline: float, car: dict, display: dict[str, str]
 ) -> list[dict]:
     """Additive EUR impacts relative to the baseline car.
 
@@ -93,10 +111,12 @@ def _group_impacts(
         if abs(shap) < 1e-9:
             continue
         factor = float(np.exp(shap))
+        field = value_fields.get(group)
         items.append(
             {
                 "feature": group,
-                "value": str(car.get(value_fields.get(group, group), "—") or "—"),
+                "value": display.get(group)
+                or (str(car.get(field, "—") or "—") if field else "—"),
                 "impact_eur": round(value * (factor - 1)),
             }
         )
@@ -114,9 +134,10 @@ def explain_instance(artifact: dict, car: dict) -> dict:
     from app.ml.predict import model_for
 
     model = model_for(artifact, car) if isinstance(artifact, dict) else artifact
-    shap, base, log_pred = _shap_values(model, [car])
+    stats = artifact.get("segment_stats") if isinstance(artifact, dict) else None
+    shap, base, log_pred = _shap_values(model, [car], stats)
     baseline = float(np.exp(float(base)))
-    items = _group_impacts(model, shap[0], baseline, car)
+    items = _group_impacts(model, shap[0], baseline, car, _market_display(car, stats))
     return {
         "baseline_price_eur": round(baseline),
         "fair_price_eur": round(float(np.exp(float(log_pred[0])))),
@@ -124,9 +145,11 @@ def explain_instance(artifact: dict, car: dict) -> dict:
     }
 
 
-def global_importance(artifact: dict, cars: list[dict], top: int = 12) -> list[list]:
+def global_importance(
+    artifact: dict, cars: list[dict], segment_stats: dict | None = None, top: int = 12
+) -> list[list]:
     """Overall feature importance: mean |SHAP| grouped by concept, as fractions."""
-    shap, _base, _pred = _shap_values(artifact, cars)
+    shap, _base, _pred = _shap_values(artifact, cars, segment_stats)
     mean_abs = np.abs(shap).mean(axis=0)
 
     totals: dict[str, float] = {}

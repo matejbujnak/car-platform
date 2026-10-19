@@ -16,6 +16,43 @@ PRICE_MIN, PRICE_MAX = 500, 200_000
 def plausible_price(price_eur) -> bool:
     return price_eur is not None and PRICE_MIN <= price_eur <= PRICE_MAX
 
+
+# --- market ("segment") statistics ------------------------------------------
+
+def build_segment_stats(df: pd.DataFrame) -> dict:
+    """Market snapshot: price/size/mileage of each (make, model) cohort.
+
+    Computed from the training rows and saved inside the artifact, so training
+    and serving always see the same numbers. Rare models fall back to the
+    make-level and then the global statistics.
+    """
+
+    def agg(frame: pd.DataFrame) -> dict:
+        return {
+            "median_price": float(frame["price_eur"].median()),
+            "median_mileage": float(frame["mileage_km"].median() or 0),
+            "supply": int(len(frame)),
+        }
+
+    return {
+        "by_model": {
+            (str(make), str(model)): agg(frame)
+            for (make, model), frame in df.groupby(["make", "model"])
+        },
+        "by_make": {str(make): agg(frame) for make, frame in df.groupby("make")},
+        "global": agg(df),
+    }
+
+
+def segment_row(stats: dict | None, make, model) -> dict | None:
+    """Cohort statistics for a car (model -> make -> global fallback)."""
+    if not stats:
+        return None
+    row = stats.get("by_model", {}).get((str(make), str(model)))
+    if row is None:
+        row = stats.get("by_make", {}).get(str(make))
+    return row or stats.get("global")
+
 # Numeric features (built from the raw listing columns).
 NUMERIC = [
     "car_age",
@@ -26,6 +63,11 @@ NUMERIC = [
     "log_power",
     "engine_cc",
     "power_per_cc",
+    # Market ("segment") context - the model sees the competition around the
+    # car, not just the car itself.
+    "segment_median_price",
+    "segment_supply",
+    "mileage_vs_segment",
 ]
 
 # Categorical features (raw listing columns).
@@ -44,8 +86,14 @@ def simplify_gearbox(value) -> str:
     return "unknown"
 
 
-def add_features(df: pd.DataFrame, current_year: int) -> pd.DataFrame:
-    """Add model features to a frame with the raw listing columns."""
+def add_features(
+    df: pd.DataFrame, current_year: int, segment_stats: dict | None = None
+) -> pd.DataFrame:
+    """Add model features to a frame with the raw listing columns.
+
+    `segment_stats` is the market snapshot from build_segment_stats(); without
+    it the market features stay empty (the imputer neutralizes them).
+    """
     df = df.copy()
     age = (current_year - df["year"]).clip(lower=0)
     df["car_age"] = age
@@ -62,4 +110,16 @@ def add_features(df: pd.DataFrame, current_year: int) -> pd.DataFrame:
     for col in CATEGORICAL:
         if col in df.columns:
             df[col] = df[col].fillna("unknown").astype(str)
+
+    # Market context: how the car sits among its competitors.
+    resolved = [
+        segment_row(segment_stats, make, model)
+        for make, model in zip(df["make"], df["model"])
+    ]
+    df["segment_median_price"] = [r["median_price"] if r else np.nan for r in resolved]
+    df["segment_supply"] = [float(r["supply"]) if r else np.nan for r in resolved]
+    df["mileage_vs_segment"] = [
+        ((mileage or 0) + 1) / ((r["median_mileage"] if r else np.nan) + 1)
+        for mileage, r in zip(df["mileage_km"].fillna(0), resolved)
+    ]
     return df
