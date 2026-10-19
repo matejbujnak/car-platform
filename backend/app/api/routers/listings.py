@@ -99,6 +99,8 @@ def list_listings(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     make: str | None = Query(None, description="comma-separated list of makes"),
+    model: str | None = Query(None, description="comma-separated list of models"),
+    search: str | None = Query(None, description="text search in title, make and model"),
     fuel: str | None = Query(None),
     gearbox: str | None = Query(None),
     body: str | None = Query(None),
@@ -121,6 +123,19 @@ def list_listings(
         makes = [m for m in make.split(",") if m]
         if makes:
             conditions.append(Listing.make.in_(makes))
+    if model:
+        models = [m for m in model.split(",") if m]
+        if models:
+            conditions.append(Listing.model.in_(models))
+    if search:
+        pattern = f"%{search.strip()}%"
+        conditions.append(
+            or_(
+                Listing.title.ilike(pattern),
+                Listing.make.ilike(pattern),
+                Listing.model.ilike(pattern),
+            )
+        )
     if fuel:
         fuels = [f for f in fuel.split(",") if f]
         if fuels:

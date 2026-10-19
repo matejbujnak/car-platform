@@ -97,6 +97,12 @@ export function fetchStats(): Promise<Stats> {
   return request("/api/stats");
 }
 
+/** Distinct model names, optionally limited to selected makes. */
+export function fetchModelNames(make?: string): Promise<string[]> {
+  const qs = make ? `?make=${encodeURIComponent(make)}` : "";
+  return request(`/api/stats/models${qs}`);
+}
+
 export function fetchListings(params: Record<string, string | number | undefined>) {
   const qs = new URLSearchParams();
   for (const [key, value] of Object.entries(params)) {

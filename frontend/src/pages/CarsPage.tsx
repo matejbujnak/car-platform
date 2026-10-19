@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { fetchListings, fetchStats, type Listing, type Stats } from "../api";
+import {
+  fetchListings,
+  fetchModelNames,
+  fetchStats,
+  type Listing,
+  type Stats,
+} from "../api";
 import DealBadge from "../components/DealBadge";
 import MultiSelect from "../components/MultiSelect";
 import {
@@ -16,6 +22,8 @@ const STORAGE_KEY = "carFilters";
 
 interface Filters {
   make: string;
+  model: string;
+  search: string;
   fuel: string;
   gearbox: string;
   body: string;
@@ -33,6 +41,8 @@ interface Filters {
 
 const EMPTY: Filters = {
   make: "",
+  model: "",
+  search: "",
   fuel: "",
   gearbox: "",
   body: "",
@@ -99,6 +109,7 @@ export default function CarsPage() {
   const [draft, setDraft] = useState<Filters>(initial);
   const [applied, setApplied] = useState<Filters>(initial);
   const [stats, setStats] = useState<Stats | null>(null);
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [items, setItems] = useState<Listing[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -107,12 +118,21 @@ export default function CarsPage() {
     fetchStats().then(setStats).catch(console.error);
   }, []);
 
+  // Model choices follow the selected makes (all models when none selected).
+  useEffect(() => {
+    fetchModelNames(draft.make || undefined)
+      .then(setModelOptions)
+      .catch(console.error);
+  }, [draft.make]);
+
   useEffect(() => {
     setLoading(true);
     fetchListings({
       limit: PAGE_SIZE,
       offset: applied.page * PAGE_SIZE,
       make: applied.make,
+      model: applied.model,
+      search: applied.search,
       fuel: applied.fuel,
       gearbox: applied.gearbox,
       body: applied.body,
@@ -202,6 +222,18 @@ export default function CarsPage() {
           value={draft.make}
           onChange={(v) => set("make", v)}
           options={(stats?.makes ?? []).map((m) => [m, m])}
+        />
+        <MultiSelect
+          placeholder="Model"
+          value={draft.model}
+          onChange={(v) => set("model", v)}
+          options={modelOptions.map((m) => [m, m])}
+        />
+        <input
+          className={`${inputCls} w-40`}
+          value={draft.search}
+          onChange={(e) => set("search", e.target.value)}
+          placeholder="Search…"
         />
         <MultiSelect
           placeholder="Fuel"

@@ -1,6 +1,6 @@
 """Public summary statistics (used by the web UI header)."""
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlmodel import Session, func, select
 
 from app.db.models import Listing, Prediction
@@ -8,6 +8,21 @@ from app.db.session import get_session
 from app.ml.predict import active_model
 
 router = APIRouter(prefix="/api/stats", tags=["stats"])
+
+
+@router.get("/models")
+def model_names(
+    session: Session = Depends(get_session),
+    make: str | None = Query(None, description="comma-separated list of makes"),
+) -> list[str]:
+    """Distinct model names (optionally limited to the given makes)."""
+    query = select(Listing.model).distinct()
+    if make:
+        makes = [m for m in make.split(",") if m]
+        if makes:
+            query = query.where(Listing.make.in_(makes))
+    rows = session.exec(query.order_by(Listing.model)).all()
+    return [row for row in rows if row]
 
 
 @router.get("")

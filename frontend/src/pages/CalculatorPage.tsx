@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { fetchStats, predict, type Prediction, type Stats } from "../api";
+import {
+  fetchModelNames,
+  fetchStats,
+  predict,
+  type Prediction,
+  type Stats,
+} from "../api";
 import DealBadge from "../components/DealBadge";
 import PriceBar from "../components/PriceBar";
 import {
@@ -30,6 +36,7 @@ const inputCls =
 
 export default function CalculatorPage() {
   const [stats, setStats] = useState<Stats | null>(null);
+  const [modelOptions, setModelOptions] = useState<string[]>([]);
   const [form, setForm] = useState<Record<string, string>>({ ...DEFAULTS });
   const [askingPrice, setAskingPrice] = useState("");
   const [result, setResult] = useState<Prediction | null>(null);
@@ -39,6 +46,17 @@ export default function CalculatorPage() {
   useEffect(() => {
     fetchStats().then(setStats).catch(console.error);
   }, []);
+
+  // Model choices follow the chosen make; keep the form consistent.
+  useEffect(() => {
+    fetchModelNames(form.make)
+      .then((names) => {
+        setModelOptions(names);
+        setForm((f) => (names.includes(f.model) ? f : { ...f, model: names[0] ?? "" }));
+      })
+      .catch(console.error);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form.make]);
 
   const set = (key: string, value: string) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -82,7 +100,12 @@ export default function CalculatorPage() {
               onChange={(v) => set("make", v)}
               options={(stats?.makes ?? []).map((m) => [m, m])}
             />
-            <Input label="Model" value={form.model} onChange={(v) => set("model", v)} />
+            <Select
+              label="Model"
+              value={form.model}
+              onChange={(v) => set("model", v)}
+              options={modelOptions.map((m) => [m, m])}
+            />
             <Input label="Year" value={form.year} onChange={(v) => set("year", v)} />
             <Input
               label="KM"

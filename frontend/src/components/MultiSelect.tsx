@@ -6,6 +6,8 @@ interface Props {
   onChange: (v: string) => void;
   /** [label, value] pairs - labels are shown, values are sent to the API. */
   options: string[][];
+  /** Max rows rendered at once (search narrows the list). */
+  maxVisible?: number;
 }
 
 /** Dropdown with a search box and checkboxes; value is a comma-joined list. */
@@ -14,13 +16,14 @@ export default function MultiSelect({
   value,
   onChange,
   options,
+  maxVisible = 150,
 }: Props) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const selected = value ? value.split(",").filter(Boolean) : [];
-  const visible = options.filter(([label]) =>
-    label.toLowerCase().includes(query.trim().toLowerCase()),
-  );
+  const visible = options
+    .filter(([label]) => label.toLowerCase().includes(query.trim().toLowerCase()))
+    .slice(0, maxVisible);
 
   const toggle = (optionValue: string) => {
     const next = selected.includes(optionValue)
