@@ -1,4 +1,10 @@
-"""Prediction helpers: fair price + interval for one car or a batch."""
+"""Prediction helpers: fair price + interval for one car or a batch.
+
+Artifacts come in two shapes:
+- tiered (new): {"tiers": {name: {pipeline, conformal_q_log}}, "make_tier": ...}
+  - each car is routed to its market tier's model;
+- single pipeline (legacy): {"pipeline": ..., ...}.
+"""
 
 from functools import lru_cache
 
@@ -41,22 +47,26 @@ def active_artifact(session: Session) -> dict | None:
     return load_artifact(mv.artifact_path)
 
 
-def predict_prices(artifact: dict, cars: list[dict]) -> list[dict]:
-    """Fair price and prediction interval for each car (raw listing fields).
-
-    Newer artifacts predict log prices and carry a relative conformal error
-    (conformal_q_log) - the interval then scales with the price. Older
-    artifacts predict prices directly with a fixed +/- EUR interval.
-    """
-    frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
-    raw = artifact["pipeline"].predict(frame[CATEGORICAL + NUMERIC])
-    return [_prediction(artifact, value) for value in raw]
+def model_for(artifact: dict, car: dict) -> dict:
+    """The model bundle that should price this car (tier routing)."""
+    if "tiers" in artifact:
+        tier = artifact["make_tier"].get(str(car.get("make")), artifact["default_tier"])
+        return artifact["tiers"].get(tier) or artifact["tiers"][artifact["default_tier"]]
+    return artifact
 
 
-def _prediction(artifact: dict, value: float) -> dict:
-    if artifact.get("log_target"):
+def tier_name(artifact: dict, car: dict) -> str | None:
+    if "tiers" not in artifact:
+        return None
+    tier = artifact["make_tier"].get(str(car.get("make")), artifact["default_tier"])
+    return tier if tier in artifact["tiers"] else artifact["default_tier"]
+
+
+def _prediction(model: dict, value: float) -> dict:
+    if "conformal_q_log" in model or model.get("log_target"):
+        # Log-price model: the interval is relative and scales with the price.
         price = float(np.exp(value))
-        q = float(artifact["conformal_q_log"])
+        q = float(model.get("conformal_q_log", 0.0))
         return {
             "fair_price_eur": round(price),
             "interval_low_eur": round(price * np.exp(-q)),
@@ -64,12 +74,38 @@ def _prediction(artifact: dict, value: float) -> dict:
         }
     # Legacy artifact: absolute prices with a fixed interval.
     price = float(value)
-    q = float(artifact.get("conformal_q", 0.0))
+    q = float(model.get("conformal_q", 0.0))
     return {
         "fair_price_eur": round(price),
         "interval_low_eur": round(max(price - q, 0)),
         "interval_high_eur": round(price + q),
     }
+
+
+def predict_prices(artifact: dict, cars: list[dict]) -> list[dict]:
+    """Fair price and prediction interval for each car (raw listing fields)."""
+    frame = add_features(pd.DataFrame(cars), CURRENT_YEAR)
+    out: list[dict | None] = [None] * len(cars)
+
+    # Group cars by the model that prices them (tier routing) and predict in
+    # batches, then restore the original order.
+    groups: dict[int, list[int]] = {}
+    models: dict[int, dict] = {}
+    for i, car in enumerate(cars):
+        model = model_for(artifact, car)
+        key = id(model)
+        groups.setdefault(key, []).append(i)
+        models[key] = model
+
+    for key, indexes in groups.items():
+        model = models[key]
+        raw = model["pipeline"].predict(
+            frame.iloc[indexes][CATEGORICAL + NUMERIC]
+        )
+        for i, value in zip(indexes, raw):
+            out[i] = _prediction(model, float(value))
+
+    return [item for item in out if item is not None]
 
 
 def predict_price(artifact: dict, car: dict) -> dict:

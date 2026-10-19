@@ -90,6 +90,10 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   const activeModel = models.find((m) => m.is_active);
   const topFeatures: [string, number][] =
     (activeModel?.metrics?.top_features as [string, number][]) ?? [];
+  const tierMetrics: Record<
+    string,
+    { rows: number; mae: number; r2: number; interval_pct: number }
+  > = (activeModel?.metrics?.tiers as Record<string, never>) ?? {};
 
   return (
     <div className="mt-8">
@@ -172,6 +176,43 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           </tbody>
         </table>
       </section>
+
+      {/* Model tiers */}
+      {Object.keys(tierMetrics).length > 0 && (
+        <section className="mt-8">
+          <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+            Model tiers
+          </h2>
+          <table className="mt-3 w-full text-[15px]">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                <th className="py-2.5 pr-4">Tier</th>
+                <th className="px-3 py-2.5 text-right">Rows</th>
+                <th className="px-3 py-2.5 text-right">MAE</th>
+                <th className="px-3 py-2.5 text-right">R²</th>
+                <th className="px-3 py-2.5 text-right">Interval</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(tierMetrics).map(([tier, m]) => (
+                <tr key={tier} className="border-b border-slate-100">
+                  <td className="py-2.5 pr-4 font-medium">{tier}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.rows.toLocaleString("en-US")}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {formatPrice(m.mae)}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">{m.r2}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    ± {m.interval_pct}%
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
 
       {/* Feature importance */}
       {topFeatures.length > 0 && (

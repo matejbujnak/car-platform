@@ -108,11 +108,15 @@ def explain_instance(artifact: dict, car: dict) -> dict:
     """Why this car's fair price is what it is.
 
     Returns the baseline price of a comparable average car plus per-feature
-    EUR impacts; baseline + all impacts = fair price.
+    EUR impacts; baseline + all impacts = fair price. With tiered artifacts the
+    car is routed to its market tier's model first.
     """
-    shap, base, log_pred = _shap_values(artifact, [car])
+    from app.ml.predict import model_for
+
+    model = model_for(artifact, car) if isinstance(artifact, dict) else artifact
+    shap, base, log_pred = _shap_values(model, [car])
     baseline = float(np.exp(float(base)))
-    items = _group_impacts(artifact, shap[0], baseline, car)
+    items = _group_impacts(model, shap[0], baseline, car)
     return {
         "baseline_price_eur": round(baseline),
         "fair_price_eur": round(float(np.exp(float(log_pred[0])))),

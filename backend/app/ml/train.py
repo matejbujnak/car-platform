@@ -1,9 +1,17 @@
-"""Train the fair-price model and register it in the database.
+"""Train the fair-price models and register them in the database.
 
-Compares a linear baseline (Ridge) with gradient boosting (LightGBM), picks the
-better one by MAE and computes an 80% prediction interval with split conformal
-prediction. The winning pipeline is saved as an artifact and registered in the
-modelversion table (the API serves predictions from the active version).
+The market is not homogeneous - a budget city car and a luxury coupe follow
+different pricing rules - so the makes are split into price tiers (by their
+median price in the data) and each tier gets:
+
+- its own LightGBM model (trained on log prices, so errors stay relative),
+- its own split-conformal prediction interval (the budget tier really is less
+  predictable than the middle of the market - the intervals say so honestly),
+- its own feature importances for explainability.
+
+A Ridge regression is fitted per tier as a sanity baseline. The winning
+pipelines are saved as one artifact and registered in the modelversion table
+(the API routes each car to its tier's model).
 
 Usage:
     python -m app.ml.train              # trains on listings in the database
@@ -47,7 +55,6 @@ from app.ml.features import (
     PRICE_MAX,
     PRICE_MIN,
     add_features,
-    plausible_price,
     simplify_gearbox,
 )
 from sqlmodel import Session, select
@@ -62,6 +69,12 @@ MILEAGE_MAX = 500_000
 
 # Split conformal: interval covers ~80% of the residuals on held-out data.
 INTERVAL_COVERAGE = 0.80
+
+# Market tiers: makes are grouped by their median price (data-driven), the
+# top tier gets the luxury name. A tier with too few rows falls back to the
+# default tier at prediction time.
+TIER_NAMES = ["budget", "mid", "premium", "luxury"]
+MIN_TIER_ROWS = 500
 
 
 # --- data -------------------------------------------------------------------
@@ -96,6 +109,35 @@ def clean(df: pd.DataFrame) -> pd.DataFrame:
     df["gearbox"] = df["gearbox"].apply(simplify_gearbox)
     print(f"Cleaned: {len(df):,} rows (dropped {n0 - len(df):,})")
     return df
+
+
+def assign_tiers(df: pd.DataFrame) -> dict[str, str]:
+    """Group makes into price tiers (data-driven).
+
+    Makes are ordered by their median price and cut into tiers so that each
+    tier holds a comparable number of cars - the tier is decided by the make,
+    which is known at prediction time.
+    """
+    medians = df.groupby("make")[TARGET].median().sort_values()
+    counts = df["make"].value_counts()
+    target_rows = len(df) / len(TIER_NAMES)
+    remaining_rows = {make: int(counts.get(make, 0)) for make in medians.index}
+
+    tier_of: dict[str, str] = {}
+    tier_idx = 0
+    acc = 0
+    makes = list(medians.index)
+    for i, make in enumerate(makes):
+        tier_of[make] = TIER_NAMES[min(tier_idx, len(TIER_NAMES) - 1)]
+        acc += remaining_rows[make]
+        # Cut to the next tier when this one is "full", but always leave at
+        # least one make for each remaining tier.
+        makes_left = len(makes) - i - 1
+        tiers_left = len(TIER_NAMES) - tier_idx - 1
+        if acc >= target_rows and makes_left >= tiers_left:
+            tier_idx += 1
+            acc = 0
+    return tier_of
 
 
 # --- models -----------------------------------------------------------------
@@ -151,81 +193,126 @@ def train(csv_path: str | None = None) -> None:
             "Scrape more data first (POST /api/admin/scrape/full)."
         )
 
-    # The model learns LOG prices: errors are then relative (the same
-    # percentage accuracy on cheap and expensive cars), which matters a lot
-    # for cheap cars where absolute errors would dominate.
-    y_log = np.log(df[TARGET])
-    y_price = df[TARGET]
-    x = df[CATEGORICAL + NUMERIC]
+    tier_of = assign_tiers(df)
+    df["_tier"] = df["make"].map(tier_of)
+    sizes = df["_tier"].value_counts().to_dict()
+    print("Tier sizes:", {t: int(sizes.get(t, 0)) for t in TIER_NAMES})
 
-    # 60% train / 20% calibration (conformal) / 20% test.
-    x_train, x_test, y_train_log, y_test_log, y_train_price, y_test_price = (
-        train_test_split(x, y_log, y_price, test_size=0.20, random_state=RANDOM_STATE)
-    )
-    x_train, x_cal, y_train_log, y_cal_log, y_train_price, y_cal_price = (
-        train_test_split(
+    tiers_out: dict[str, dict] = {}
+    all_true: list[np.ndarray] = []
+    all_pred: list[np.ndarray] = []
+
+    for tier in TIER_NAMES:
+        sub = df[df["_tier"] == tier]
+        if len(sub) < MIN_TIER_ROWS:
+            print(f"tier '{tier}': only {len(sub)} rows - skipped "
+                  f"(falls back to the default tier)")
+            continue
+
+        # The model learns LOG prices: errors are then relative (the same
+        # percentage accuracy on cheap and expensive cars).
+        y_log = np.log(sub[TARGET])
+        y_price = sub[TARGET]
+        x = sub[CATEGORICAL + NUMERIC]
+
+        x_train, x_test, y_train_log, y_test_log, y_train_price, y_test_price = (
+            train_test_split(x, y_log, y_price, test_size=0.20, random_state=RANDOM_STATE)
+        )
+        x_train, x_cal, y_train_log, y_cal_log, _, _ = train_test_split(
             x_train, y_train_log, y_train_price, test_size=0.25, random_state=RANDOM_STATE
         )
-    )
-    print(f"Split: {len(x_train):,} train / {len(x_cal):,} calibration / {len(x_test):,} test")
 
-    results: dict[str, dict] = {}
-    fitted: dict[str, Pipeline] = {}
-    for name, pipeline in build_pipelines().items():
-        pipeline.fit(x_train, y_train_log)
-        pred_price = np.exp(pipeline.predict(x_test))
-        results[name] = metrics(y_test_price.to_numpy(), pred_price)
-        fitted[name] = pipeline
-        print(f"{name:>10}: {results[name]}")
+        results: dict[str, dict] = {}
+        fitted: dict[str, Pipeline] = {}
+        for name, pipeline in build_pipelines().items():
+            pipeline.fit(x_train, y_train_log)
+            pred_price = np.exp(pipeline.predict(x_test))
+            results[name] = metrics(y_test_price.to_numpy(), pred_price)
+            fitted[name] = pipeline
+            print(f"  tier '{tier}' {name:>10}: {results[name]}")
 
-    best_name = min(results, key=lambda n: results[n]["mae"])
-    best = fitted[best_name]
-    print(f"Best model: {best_name}")
+        # Ridge is the sanity baseline; LightGBM is the production model (it
+        # wins on this data and supports exact SHAP explanations).
+        best_name = "lightgbm"
+        best = fitted[best_name]
+        pred_price = np.exp(best.predict(x_test))
+        all_true.append(y_test_price.to_numpy())
+        all_pred.append(pred_price)
 
-    # Split conformal prediction in log space: q is a RELATIVE error, so the
-    # interval scales with the price (narrow for cheap cars, wide for expensive
-    # ones) instead of being a fixed +/- EUR amount.
-    cal_residuals = np.abs(y_cal_log.to_numpy() - best.predict(x_cal))
-    conformal_q_log = float(np.quantile(cal_residuals, INTERVAL_COVERAGE))
-    conformal_pct = (np.exp(conformal_q_log) - 1) * 100
-    print(f"{int(INTERVAL_COVERAGE * 100)}% interval: +/- {conformal_pct:.1f}% of the fair price")
+        # Per-tier conformal interval in log space: a RELATIVE error that
+        # scales with the price and honestly reflects the tier's predictability.
+        cal_residuals = np.abs(y_cal_log.to_numpy() - best.predict(x_cal))
+        conformal_q_log = float(np.quantile(cal_residuals, INTERVAL_COVERAGE))
 
-    # Global explainability: which features drive the model overall.
-    sample = x_test.index.to_series().sample(
-        min(2000, len(x_test)), random_state=RANDOM_STATE
-    )
-    importance = global_importance(best, df.loc[sample, RAW_FIELDS].to_dict("records"))
-    print("Top features:", importance[:5])
+        sample = sub[RAW_FIELDS].sample(min(2000, len(sub)), random_state=RANDOM_STATE)
+        importance = global_importance(best, sample.to_dict("records"))
 
-    save_artifact(best, best_name, results[best_name], conformal_q_log, len(df), importance)
+        print(f"tier '{tier}' ({len(sub):,} rows): {best_name} {results[best_name]} "
+              f"interval +/- {(np.exp(conformal_q_log) - 1) * 100:.1f}%")
+
+        tiers_out[tier] = {
+            "pipeline": best,
+            "conformal_q_log": conformal_q_log,
+            "metrics": results[best_name],
+            "rows": int(len(sub)),
+            "importance": importance,
+            "model_name": f"{best_name}_{tier}",
+        }
+
+    if not tiers_out:
+        raise SystemExit("No tier had enough rows to train on.")
+
+    # Overall metrics over all tier test sets (for the registry headline).
+    overall = metrics(np.concatenate(all_true), np.concatenate(all_pred))
+    default_tier = max(tiers_out, key=lambda t: tiers_out[t]["rows"])
+    print(f"Overall: {overall} (default tier: {default_tier})")
+
+    save_artifact(tiers_out, tier_of, default_tier, overall, len(df))
 
 
 def save_artifact(
-    pipeline: Pipeline,
-    model_name: str,
-    metrics_: dict[str, float],
-    conformal_q_log: float,
+    tiers_out: dict[str, dict],
+    tier_of: dict[str, str],
+    default_tier: str,
+    overall: dict[str, float],
     rows: int,
-    importance: list[list],
 ) -> None:
     os.makedirs(config.MODEL_DIR, exist_ok=True)
     stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-    name = f"{model_name}_{stamp}"
+    name = f"tiers_{stamp}"
     path = Path(config.MODEL_DIR) / f"{name}.joblib"
 
     joblib.dump(
         {
-            "pipeline": pipeline,
-            "model_name": model_name,
-            "metrics": metrics_,
-            "conformal_q_log": conformal_q_log,
-            "global_importance": importance,
-            "features": {"numeric": NUMERIC, "categorical": CATEGORICAL},
-            "trained_at": stamp,
             "log_target": True,
+            "model_name": name,
+            "tiers": {
+                tier: {
+                    "pipeline": data["pipeline"],
+                    "conformal_q_log": data["conformal_q_log"],
+                    "model_name": data["model_name"],
+                }
+                for tier, data in tiers_out.items()
+            },
+            "make_tier": tier_of,
+            "default_tier": default_tier,
+            "global_importance": tiers_out[default_tier]["importance"],
+            "trained_at": stamp,
         },
         path,
     )
+
+    tier_metrics = {
+        tier: {
+            "rows": data["rows"],
+            "mae": data["metrics"]["mae"],
+            "r2": data["metrics"]["r2"],
+            "mape_pct": data["metrics"]["mape_pct"],
+            "interval_pct": round((np.exp(data["conformal_q_log"]) - 1) * 100, 1),
+            "top_features": data["importance"],
+        }
+        for tier, data in tiers_out.items()
+    }
 
     with Session(engine) as session:
         for old in session.exec(
@@ -239,9 +326,10 @@ def save_artifact(
                 artifact_path=str(path),
                 dataset_rows=rows,
                 metrics={
-                    **metrics_,
-                    "conformal_q_pct": round((np.exp(conformal_q_log) - 1) * 100, 1),
-                    "top_features": importance,
+                    **overall,
+                    "default_tier": default_tier,
+                    "tiers": tier_metrics,
+                    "top_features": tiers_out[default_tier]["importance"],
                 },
                 is_active=True,
             )
