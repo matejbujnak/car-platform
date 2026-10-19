@@ -125,6 +125,10 @@ export function fetchListing(id: number): Promise<Listing> {
   return request(`/api/listings/${id}`);
 }
 
+export function fetchSimilar(id: number, limit = 8): Promise<{ items: Listing[] }> {
+  return request(`/api/listings/${id}/similar?limit=${limit}`);
+}
+
 export function predict(car: Record<string, unknown>): Promise<Prediction> {
   return request("/api/predict", { method: "POST", body: JSON.stringify(car) });
 }

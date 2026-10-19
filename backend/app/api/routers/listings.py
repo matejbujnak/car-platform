@@ -233,6 +233,36 @@ def list_listings(
     return {"total": total, "items": _enriched(rows, session)}
 
 
+@router.get("/{listing_id}/similar")
+def similar_listings(
+    listing_id: int,
+    session: Session = Depends(get_session),
+    limit: int = Query(8, ge=1, le=20),
+) -> dict:
+    """Same make and model offers, closest in year, mileage and power."""
+    row = session.get(Listing, listing_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+
+    distance = (
+        func.abs(Listing.year - row.year)
+        + func.abs(func.coalesce(Listing.mileage_km, 0) - (row.mileage_km or 0)) / 10000.0
+        + func.abs(func.coalesce(Listing.power_kw, 0) - (row.power_kw or 0)) / 20.0
+    )
+    rows = session.exec(
+        select(Listing)
+        .where(
+            Listing.id != row.id,
+            Listing.make == row.make,
+            Listing.model == row.model,
+            Listing.status == "active",
+        )
+        .order_by(distance)
+        .limit(limit)
+    ).all()
+    return {"total": len(rows), "items": _enriched(rows, session)}
+
+
 @router.get("/{listing_id}")
 def get_listing(listing_id: int, session: Session = Depends(get_session)) -> dict:
     row = session.get(Listing, listing_id)
