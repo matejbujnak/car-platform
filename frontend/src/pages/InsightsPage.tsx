@@ -29,7 +29,10 @@ const VERDICT_COLORS: Record<string, string> = {
   suspicious: "#d97706",
 };
 
-export default function ChartsPage() {
+const euro = (v: number) => `${Math.round(v / 1000)}k €`;
+
+/** Aggregated statistics about the used-car market. */
+export default function InsightsPage() {
   const [data, setData] = useState<ChartsData | null>(null);
 
   useEffect(() => {
@@ -46,12 +49,24 @@ export default function ChartsPage() {
     label: d.label,
     value: d.avg_price ?? 0,
   }));
+  const byPower: ChartPoint[] = data.power_price.map((d) => ({
+    label: d.label,
+    value: d.avg_price ?? 0,
+  }));
+  const byBody: ChartPoint[] = data.bodies.map((d) => ({
+    label: d.label,
+    value: d.avg_price ?? 0,
+  }));
+  const sellerNote = data.seller_mix
+    .map((s) => `${s.label}: ${euro(s.avg_price ?? 0)} avg`)
+    .join(" · ");
 
   return (
     <div className="mt-8">
-      <h1 className="text-2xl font-bold">Market charts</h1>
+      <h1 className="text-2xl font-bold">Market insights</h1>
       <p className="mt-1 text-slate-500">
-        Aggregated from the currently available offers (real sale listings only).
+        Statistics aggregated from the currently available offers (real sale
+        listings only).
       </p>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
@@ -63,14 +78,28 @@ export default function ChartsPage() {
           title="Average price by year"
           note="depreciation curve - how value drops with age"
         >
-          <LineChart data={byYear} valueFormat={(v) => `${Math.round(v / 1000)}k €`} />
+          <LineChart data={byYear} valueFormat={euro} />
         </ChartCard>
 
         <ChartCard
           title="Average price by mileage"
           note="how much cheaper high-mileage cars are"
         >
-          <VBars data={byMileage} valueFormat={(v) => `${Math.round(v / 1000)}k €`} />
+          <VBars data={byMileage} valueFormat={euro} />
+        </ChartCard>
+
+        <ChartCard
+          title="Average price by power"
+          note="what stronger engines cost on the market"
+        >
+          <VBars data={byPower} valueFormat={euro} />
+        </ChartCard>
+
+        <ChartCard
+          title="Deal score distribution"
+          note="how far asking prices sit from the model's fair price"
+        >
+          <VBars data={data.deal_scores} />
         </ChartCard>
 
         <ChartCard title="Deal verdicts" note="model's opinion on current offers">
@@ -80,16 +109,20 @@ export default function ChartsPage() {
           />
         </ChartCard>
 
-        <ChartCard title="Top makes" note="number of offers on the market">
-          <HBars data={data.top_makes} />
+        <ChartCard title="New listings per week" note="market activity over time">
+          <VBars data={data.new_listings} />
         </ChartCard>
 
-        <ChartCard title="Body types" note="number of offers">
-          <HBars data={data.bodies} />
+        <ChartCard title="Top models" note="number of offers on the market">
+          <HBars data={data.top_models} />
         </ChartCard>
 
-        <ChartCard title="Fuel types" note="number of offers">
-          <HBars data={data.fuels} />
+        <ChartCard title="Average price by body type" note="SUV vs sedan vs estate…">
+          <HBars data={byBody} valueFormat={euro} />
+        </ChartCard>
+
+        <ChartCard title="Seller mix" note={sellerNote || undefined}>
+          <HBars data={data.seller_mix} />
         </ChartCard>
       </div>
     </div>

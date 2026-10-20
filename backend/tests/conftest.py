@@ -15,7 +15,7 @@ os.environ["ADMIN_PASSWORD"] = "test-password"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from sqlmodel import Session, SQLModel  # noqa: E402
+from sqlmodel import Session, SQLModel, select  # noqa: E402
 
 from app.db.models import Listing  # noqa: E402,F401  (registers tables)
 from app.db.seed import seed_admin  # noqa: E402
@@ -47,24 +47,28 @@ def client(session: Session):
 
 @pytest.fixture()
 def sample_listing(session: Session) -> Listing:
-    row = Listing(
-        source_id="test-1",
-        url="https://example.com/detail/test/1/",
-        title="Skoda Octavia Combi 2.0 TDi",
-        make="Skoda",
-        model="Octavia",
-        year=2020,
-        mileage_km=120_000,
-        fuel="Diesel",
-        power_kw=110,
-        engine_cc=2000,
-        gearbox="6-st. manualna",
-        body="Combi",
-        drive="Predny",
-        seller_type="dealer",
-        price_eur=16_000,
+    from app.scraping.store import upsert_listings
+
+    upsert_listings(
+        session,
+        [
+            {
+                "source_id": "test-1",
+                "url": "https://example.com/detail/test/1/",
+                "title": "Skoda Octavia Combi 2.0 TDi",
+                "make": "Skoda",
+                "model": "Octavia",
+                "year": 2020,
+                "mileage_km": 120_000,
+                "fuel": "Diesel",
+                "power_kw": 110,
+                "engine_cc": 2000,
+                "gearbox": "6-st. manualna",
+                "body": "Combi",
+                "drive": "Predny",
+                "seller_type": "dealer",
+                "price_eur": 16_000,
+            }
+        ],
     )
-    session.add(row)
-    session.commit()
-    session.refresh(row)
-    return row
+    return session.exec(select(Listing).where(Listing.source_id == "test-1")).one()

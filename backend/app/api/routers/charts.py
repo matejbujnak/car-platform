@@ -77,8 +77,105 @@ def charts(session: Session = Depends(get_session)) -> dict:
         .order_by(Listing.year)
     ).all()
 
-    verdicts = {"cheap": 0, "fair": 0, "overpriced": 0, "suspicious": 0}
+    power_buckets = [
+        ("–70 kW", 0, 70),
+        ("70–110", 70, 110),
+        ("110–150", 110, 150),
+        ("150–250", 150, 250),
+        ("250+ kW", 250, 10**9),
+    ]
+    power_rows = {
+        row[0]: row
+        for row in session.exec(
+            select(
+                _bucket_case(power_buckets, Listing.power_kw).label("bucket"),
+                count,
+                func.avg(Listing.price_eur),
+            )
+            .where(*BASE_FILTERS)
+            .group_by("bucket")
+        ).all()
+    }
+    power_price = [
+        {
+            "label": name,
+            "value": int(power_rows[name][1]) if name in power_rows else 0,
+            "avg_price": round(float(power_rows[name][2] or 0)) if name in power_rows else 0,
+        }
+        for name, _lo, _hi in power_buckets
+    ]
+
+    seller_rows = session.exec(
+        select(Listing.seller_type, count, func.avg(Listing.price_eur))
+        .where(*BASE_FILTERS)
+        .group_by(Listing.seller_type)
+    ).all()
+    seller_mix = [
+        {
+            "label": {"dealer": "Dealer", "private": "Private"}.get(str(row[0]), "Unknown"),
+            "value": int(row[1]),
+            "avg_price": round(float(row[2] or 0)),
+        }
+        for row in seller_rows
+    ]
+
+    model_rows = session.exec(
+        select(Listing.make, Listing.model, count, func.avg(Listing.price_eur))
+        .where(*BASE_FILTERS)
+        .group_by(Listing.make, Listing.model)
+        .order_by(count.desc())
+        .limit(10)
+    ).all()
+    top_models = [
+        {
+            "label": f"{make} {model}",
+            "value": int(total),
+            "avg_price": round(float(avg or 0)),
+        }
+        for make, model, total, avg in model_rows
+    ]
+
+    # New offers per week (grouped in Python to stay database-agnostic).
+    weeks: dict[str, int] = {}
+    for seen in session.exec(select(Listing.first_seen).where(*BASE_FILTERS)).all():
+        iso = seen.isocalendar()
+        key = f"{iso[0]}-W{iso[1]:02d}"
+        weeks[key] = weeks.get(key, 0) + 1
+    new_listings = [
+        {"label": key, "value": value}
+        for key, value in sorted(weeks.items())[-10:]
+    ]
+
+    # Distribution of deal scores (how far prices sit from the fair price).
     mv = active_model(session)
+    score_buckets = [
+        ("< −30%", -10**9, -30),
+        ("−30/−20", -30, -20),
+        ("−20/−10", -20, -10),
+        ("−10/0", -10, 0),
+        ("0/10%", 0, 10),
+        ("10/20%", 10, 20),
+        ("20/30%", 20, 30),
+        ("> 30%", 30, 10**9),
+    ]
+    deal_scores = {"< −30%": 0, "−30/−20": 0, "−20/−10": 0, "−10/0": 0, "0/10%": 0, "10/20%": 0, "20/30%": 0, "> 30%": 0}
+    if mv is not None:
+        score_expr = Prediction.deal_score * 100
+        score_rows = session.exec(
+            select(_bucket_case(score_buckets, score_expr).label("bucket"), count)
+            .join(Listing, Prediction.listing_id == Listing.id)
+            .where(
+                Prediction.model_version_id == mv.id,
+                Prediction.deal_score.is_not(None),
+                *BASE_FILTERS,
+            )
+            .group_by("bucket")
+        ).all()
+        for bucket, total in score_rows:
+            if bucket in deal_scores:
+                deal_scores[bucket] = int(total)
+
+    verdicts = {"cheap": 0, "fair": 0, "overpriced": 0, "suspicious": 0}
     if mv is not None:
         rows = session.exec(
             select(Prediction.deal_verdict, count)
@@ -120,7 +217,12 @@ def charts(session: Session = Depends(get_session)) -> dict:
             if year is not None
         ],
         "top_makes": group_stats(Listing.make, 12),
+        "top_models": top_models,
         "bodies": group_stats(Listing.body, 8),
         "fuels": group_stats(Listing.fuel, 8),
+        "power_price": power_price,
+        "seller_mix": seller_mix,
+        "new_listings": new_listings,
+        "deal_scores": [{"label": key, "value": value} for key, value in deal_scores.items()],
         "verdicts": [{"label": key, "value": value} for key, value in verdicts.items()],
     }

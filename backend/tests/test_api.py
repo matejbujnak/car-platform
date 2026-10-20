@@ -107,3 +107,26 @@ def test_listing_ids_filter(client, session, sample_listing):
     assert resp.status_code == 200
     assert resp.json()["total"] == 1
     assert client.get("/api/listings?ids=999999&status=all").json()["total"] == 0
+
+
+def test_price_history_is_recorded(client, session, sample_listing):
+    """A new listing gets one price point; price changes add more."""
+    from app.scraping.store import upsert_listings
+
+    upsert_listings(
+        session,
+        [
+            {
+                "source_id": "test-1",
+                "url": sample_listing.url,
+                "title": sample_listing.title,
+                "make": "Skoda",
+                "model": "Octavia",
+                "year": 2020,
+                "price_eur": 15_000,  # changed price -> new history point
+            }
+        ],
+    )
+
+    body = client.get(f"/api/listings/{sample_listing.id}/history").json()
+    assert [p["price_eur"] for p in body["points"]] == [16_000, 15_000]

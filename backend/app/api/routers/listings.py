@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import asc, desc, nullslast, or_
 from sqlmodel import Session, func, select
 
-from app.db.models import Listing, Prediction
+from app.db.models import Listing, Prediction, PriceHistory
 from app.db.session import get_session
 from app.ml.predict import (
     CAR_FIELDS,
@@ -281,6 +281,29 @@ def similar_listings(
         .limit(limit)
     ).all()
     return {"total": len(rows), "items": _enriched(rows, session)}
+
+
+@router.get("/{listing_id}/history")
+def price_history(
+    listing_id: int,
+    session: Session = Depends(get_session),
+) -> dict:
+    """Observed prices of a listing over time (oldest first)."""
+    row = session.get(Listing, listing_id)
+    if row is None:
+        raise HTTPException(status_code=404, detail="Listing not found")
+    points = session.exec(
+        select(PriceHistory)
+        .where(PriceHistory.listing_id == listing_id)
+        .order_by(PriceHistory.observed_at, PriceHistory.id)
+    ).all()
+    return {
+        "listing_id": listing_id,
+        "points": [
+            {"observed_at": p.observed_at.isoformat(), "price_eur": p.price_eur}
+            for p in points
+        ],
+    }
 
 
 @router.get("/{listing_id}")

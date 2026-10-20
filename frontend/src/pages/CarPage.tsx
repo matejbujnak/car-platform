@@ -2,14 +2,17 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   fetchListing,
+  fetchPriceHistory,
   fetchSimilar,
   type Explanation,
   type Listing,
+  type PricePoint,
 } from "../api";
 import { getCompareIds, toggleCompare } from "../compare";
 import DealBadge from "../components/DealBadge";
 import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
+import { LineChart } from "../components/charts";
 import { formatKm, formatPrice } from "../components/format";
 
 export default function CarPage() {
@@ -17,17 +20,25 @@ export default function CarPage() {
   const navigate = useNavigate();
   const [car, setCar] = useState<Listing | null>(null);
   const [similar, setSimilar] = useState<Listing[]>([]);
+  const [history, setHistory] = useState<PricePoint[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     setCar(null);
     setSimilar([]);
+    setHistory([]);
     fetchListing(Number(id))
       .then((data) => {
         setCar(data);
-        return fetchSimilar(Number(id));
+        return Promise.all([
+          fetchSimilar(Number(id)),
+          fetchPriceHistory(Number(id)),
+        ]);
       })
-      .then((data) => setSimilar(data.items))
+      .then(([similarData, historyData]) => {
+        setSimilar(similarData.items);
+        setHistory(historyData.points);
+      })
       .catch((e) => setError(e.message));
   }, [id]);
 
@@ -121,6 +132,39 @@ export default function CarPage() {
           </div>
         </section>
       )}
+
+      {/* Price history */}
+      <section className="mt-8">
+        <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
+          Price history
+        </h2>
+        {history.length >= 2 ? (
+          <>
+            <div className="mt-3 max-w-3xl">
+              <LineChart
+                data={history.map((p) => ({
+                  label: p.observed_at.slice(0, 10),
+                  value: p.price_eur,
+                }))}
+                valueFormat={(v) => `${Math.round(v / 1000)}k €`}
+              />
+            </div>
+            <p className="mt-2 text-xs text-slate-400">
+              {history.length} observations since {history[0].observed_at.slice(0, 10)}
+              {history[history.length - 1].price_eur !== history[0].price_eur
+                ? ` · price changed by ${(
+                    history[history.length - 1].price_eur - history[0].price_eur
+                  ).toLocaleString("en-US")} € since first seen`
+                : " · price unchanged so far"}
+            </p>
+          </>
+        ) : (
+          <p className="mt-3 text-sm text-slate-400">
+            Collecting price history - changes will appear here as the daily
+            crawls observe this offer.
+          </p>
+        )}
+      </section>
 
       {/* Similar offers */}
       {similar.length > 0 && (

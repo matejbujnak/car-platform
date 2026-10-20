@@ -119,13 +119,27 @@ export interface ChartsData {
   mileage_price: ChartPoint[];
   price_by_year: ChartPoint[];
   top_makes: ChartPoint[];
+  top_models: ChartPoint[];
   bodies: ChartPoint[];
   fuels: ChartPoint[];
+  power_price: ChartPoint[];
+  seller_mix: ChartPoint[];
+  new_listings: ChartPoint[];
+  deal_scores: ChartPoint[];
   verdicts: ChartPoint[];
 }
 
 export function fetchCharts(): Promise<ChartsData> {
   return request("/api/charts");
+}
+
+export interface PricePoint {
+  observed_at: string;
+  price_eur: number;
+}
+
+export function fetchPriceHistory(id: number): Promise<{ points: PricePoint[] }> {
+  return request(`/api/listings/${id}/history`);
 }
 
 /** Distinct model names, optionally limited to selected makes. */

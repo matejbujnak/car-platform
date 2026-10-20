@@ -112,3 +112,13 @@ class Prediction(SQLModel, table=True):
     deal_verdict: Optional[str] = Field(default=None)  # cheap / fair / overpriced
     deal_score: Optional[float] = Field(default=None)  # > 0 means cheaper than fair
     computed_at: datetime = Field(default_factory=utcnow)
+
+
+class PriceHistory(SQLModel, table=True):
+    """One observed price of a listing (the listing price is overwritten on
+    every crawl; this table keeps the timeline)."""
+
+    id: Optional[int] = Field(default=None, primary_key=True)
+    listing_id: int = Field(foreign_key="listing.id", index=True)
+    price_eur: float
+    observed_at: datetime = Field(default_factory=utcnow)
