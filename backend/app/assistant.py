@@ -41,6 +41,9 @@ SYSTEM_PROMPT = (
 
 _PROMPT_TEMPLATE = """Extract car search filters from the text below and answer with ONLY a JSON object.
 
+Include ONLY attributes that are explicitly mentioned - never invent brands,
+models or values that the text does not contain.
+
 Allowed keys (omit keys that are not mentioned):
 - make: array of brand names (e.g. ["Škoda"])
 - model: array of model names (e.g. ["Octavia"])
@@ -51,6 +54,13 @@ Allowed keys (omit keys that are not mentioned):
 - price_min, price_max, year_min, year_max, mileage_max, power_min, power_max: numbers
 - verdict: "cheap", "fair" or "overpriced"
 - sort: one of newest, deal_best, deal_worst, price_low, price_high, year_new, year_old, mileage_low, mileage_high, power_high, fuel_az
+
+Examples:
+Text: "rodinny kombik do 15 000 eur, naftovy"
+JSON: {"body": ["Combi"], "fuel": ["Diesel"], "price_max": 15000}
+
+Text: "something sporty with at least 200 kW, automatic, not older than 2018"
+JSON: {"power_min": 200, "gearbox": "automatic", "year_min": 2018}
 
 Text: \"\"\"%s\"\"\"
 JSON:"""
@@ -121,26 +131,59 @@ def parse_with_llm(question: str) -> dict | None:
         return None
 
 
-def extract_filters(question: str) -> tuple[dict, str]:
+def extract_filters(question: str, session: Session | None = None) -> tuple[dict, str]:
     """Best available question -> filters. Returns (filters, source).
 
     Both sources return the same keys the listing filters use, so the UI can
-    fill its controls directly.
+    fill its controls directly. Explicit keywords in the text ("naftovy",
+    "kombi", "automat") come from the rule parser - small LLMs are unreliable
+    there; phrasing and numbers ("not older than", "up to") come from the LLM.
+    Hallucinated makes/models are dropped against the real data.
     """
-    filters = parse_with_llm(question)
-    if filters:
-        return filters, "llm"
-
+    llm = parse_with_llm(question) or {}
+    rules: dict = {}
     raw = parse_question(question)
-    normalized: dict = {}
     for key, value in raw.items():
         if key == "bodies":
-            normalized["body"] = ",".join(value)
+            rules["body"] = ",".join(value)
         elif key == "fuels":
-            normalized["fuel"] = ",".join(value)
+            rules["fuel"] = ",".join(value)
         elif key != "limit":
-            normalized[key] = value
-    return normalized, "rules"
+            rules[key] = value
+
+    merged = dict(llm)
+    # Explicit keywords beat the model; the model is better at phrasing.
+    for key in ("fuel", "body", "gearbox", "drive", "verdict", "sort"):
+        if key in rules:
+            merged[key] = rules[key]
+    for key, value in rules.items():
+        merged.setdefault(key, value)
+
+    # Drop hallucinated makes/models - they must exist in the data.
+    if session is not None:
+        if merged.get("make"):
+            known = set(session.exec(select(Listing.make).distinct()).all())
+            keeps = [m for m in merged["make"].split(",") if m in known]
+            if keeps:
+                merged["make"] = ",".join(keeps)
+            else:
+                merged.pop("make", None)
+                merged.pop("model", None)
+        if merged.get("model"):
+            known_models = set(session.exec(select(Listing.model).distinct()).all())
+            keeps = [m for m in merged["model"].split(",") if m in known_models]
+            if keeps:
+                merged["model"] = ",".join(keeps)
+            else:
+                merged.pop("model", None)
+
+    if llm and rules:
+        source = "llm+rules"
+    elif llm:
+        source = "llm"
+    else:
+        source = "rules"
+    return merged, source
 
 
 # --- rule-based fallback ----------------------------------------------------
