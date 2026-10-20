@@ -19,6 +19,7 @@ export default function Header() {
           Car<span className="text-emerald-600">Market</span>Analyzer
         </Link>
         <NavItem to="/" label="Listings" end />
+        <NavItem to="/ask" label="Ask AI" />
         <NavItem to="/calculator" label="Price calculator" />
         <NavItem to="/insights" label="Insights" />
         <NavItem

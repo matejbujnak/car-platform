@@ -141,6 +141,40 @@ export interface PricePoint {
   price_eur: number;
 }
 
+export interface AskMatch {
+  id: number;
+  title: string;
+  year: number;
+  mileage_km: number | null;
+  power_kw: number | null;
+  fuel: string | null;
+  gearbox: string | null;
+  price_eur: number | null;
+  url: string;
+}
+
+export interface AskSearchResult {
+  question: string;
+  filters: Record<string, unknown>;
+  matches: AskMatch[];
+  summary: { matches_total: number };
+}
+
+export interface AskAnswerResult {
+  question: string;
+  answer: string;
+  used_llm: boolean;
+  summary: { matches_total: number };
+}
+
+export function askSearch(question: string): Promise<AskSearchResult> {
+  return request("/api/ask/search", { method: "POST", body: JSON.stringify({ question }) });
+}
+
+export function askAnswer(question: string): Promise<AskAnswerResult> {
+  return request("/api/ask/answer", { method: "POST", body: JSON.stringify({ question }) });
+}
+
 export function fetchPriceHistory(id: number): Promise<{ points: PricePoint[] }> {
   return request(`/api/listings/${id}/history`);
 }

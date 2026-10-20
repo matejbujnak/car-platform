@@ -43,6 +43,8 @@ services:
       - APP_ENV=development
       - MODEL_DIR=/models
       - FRONTEND_URL=http://car-platform-frontend-dev:5173
+      - OLLAMA_URL=${OLLAMA_URL:-http://life_os_ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
     volumes:
       - ./backend:/app
       - models_data:/models

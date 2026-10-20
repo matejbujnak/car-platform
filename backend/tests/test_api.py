@@ -140,6 +140,19 @@ def test_share_image_and_share_page(client, session, sample_listing):
     assert "share.png" in page.text
 
 
+def test_ask_search_and_fallback_answer(client, session, sample_listing):
+    body = {"question": "skoda octavia do 20000 eur"}
+    search = client.post("/api/ask/search", json=body).json()
+    assert search["summary"]["matches_total"] == 1
+    assert search["matches"][0]["title"].startswith("Skoda")
+    assert search["filters"]["price_max"] == 20_000
+
+    # Without an LLM the endpoint must still answer with real data.
+    answer = client.post("/api/ask/answer", json=body).json()
+    assert answer["used_llm"] is False
+    assert "Skoda" in answer["answer"]
+
+
 def test_price_history_is_recorded(client, session, sample_listing):
     """A new listing gets one price point; price changes add more."""
     from app.scraping.store import upsert_listings

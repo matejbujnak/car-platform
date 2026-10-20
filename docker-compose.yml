@@ -39,6 +39,8 @@ services:
       - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-}
       - MODEL_DIR=/models
       - FRONTEND_URL=http://car-platform-frontend
+      - OLLAMA_URL=${OLLAMA_URL:-http://life_os_ollama:11434}
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:1.5b}
       - SCRAPE_MAX_PER_HOUR=${SCRAPE_MAX_PER_HOUR:-500}
       - SCRAPE_QUICK_MAX_PAGES=${SCRAPE_QUICK_MAX_PAGES:-5}
       - SCRAPE_MIN_DELAY_SECONDS=${SCRAPE_MIN_DELAY_SECONDS:-5}

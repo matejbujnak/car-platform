@@ -1,5 +1,6 @@
 import { Route, Routes } from "react-router-dom";
 import Header from "./components/Header";
+import AskPage from "./pages/AskPage";
 import CarsPage from "./pages/CarsPage";
 import CarPage from "./pages/CarPage";
 import CalculatorPage from "./pages/CalculatorPage";
@@ -14,6 +15,7 @@ export default function App() {
       <main className="mx-auto max-w-none px-8 pb-16">
         <Routes>
           <Route path="/" element={<CarsPage />} />
+          <Route path="/ask" element={<AskPage />} />
           <Route path="/car/:id" element={<CarPage />} />
           <Route path="/calculator" element={<CalculatorPage />} />
           <Route path="/charts" element={<InsightsPage />} />

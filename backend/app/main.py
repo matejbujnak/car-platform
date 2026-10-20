@@ -14,7 +14,7 @@ from app import config
 from app.db.session import engine
 from app.ml.predict import active_artifact
 from app.core.rate_limit import limiter
-from app.api.routers import admin, auth, charts, health, listings, predict, share, stats
+from app.api.routers import admin, ask, auth, charts, health, listings, predict, share, stats
 from app.db.seed import seed_admin
 
 
@@ -53,6 +53,7 @@ app.include_router(auth.router)
 app.include_router(stats.router)
 app.include_router(charts.router)
 app.include_router(share.router)
+app.include_router(ask.router)
 app.include_router(listings.router)
 app.include_router(predict.router)
 app.include_router(admin.router)

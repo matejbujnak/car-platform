@@ -71,6 +71,11 @@ SCHEDULE_TZ = os.getenv("SCHEDULE_TZ", "UTC")
 # Where to fetch the built SPA shell from (for share previews).
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://car-platform-frontend").rstrip("/")
 
+# Local LLM for the market assistant (Ollama). Optional - the assistant falls
+# back to plain results when the model is unavailable.
+OLLAMA_URL = os.getenv("OLLAMA_URL", "http://life_os_ollama:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:1.5b")
+
 # Weekly automatic retraining (fresh data -> fresher model).
 AUTO_RETRAIN_WEEKDAY = int(os.getenv("AUTO_RETRAIN_WEEKDAY", "6"))  # 0=Mon .. 6=Sun
 AUTO_RETRAIN_HOUR = int(os.getenv("AUTO_RETRAIN_HOUR", "7"))
