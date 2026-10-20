@@ -15,6 +15,10 @@ how much you would earn or lose on the purchase.
 |---|---|---|
 | ![Listings](docs/01-listings.png) | ![Detail](docs/04-detail.png) | ![Calculator](docs/05-calculator.png) |
 
+| Sorted columns | Filters | Calculator |
+|---|---|---|
+| ![Sorted](docs/02-sorted.png) | ![Filters](docs/03-filtered.png) | ![Calculator](docs/05-calculator.png) |
+
 The screenshots and the GIF are captured automatically from the live demo on
 every update (see `.github/workflows/demo.yml`).
 
@@ -25,7 +29,10 @@ every update (see `.github/workflows/demo.yml`).
 - **ML fair-price estimate** with a prediction interval → a *deal verdict* per
   car (good deal / fair / overpriced) plus profit in € and %
 - **Public demo**: filterable listing feed, car detail with price analysis,
-  fair-price calculator
+  fair-price calculator, market insights, car comparison
+- **Smart filter (LLM experiment)**: describe what you want in natural
+  language ("*kombi do 15 000 €, od 2019, diesel*") and the filters fill in
+  — powered by a small local LLM (Ollama)
 - **Sold detection**: listings that disappear from the source site are marked
   as sold automatically, so the feed only shows live offers
 - **Admin**: run scrape jobs, retrain the model, watch metrics and progress
@@ -51,6 +58,12 @@ scraper (daily, polite)  ──►  PostgreSQL  ◄──  ML training (worker j
   placeholder prices (leasing rates) are flagged as *check price*.
 - **Background jobs** — scraping, training and prediction backfill run in a
   worker container fed by a Redis queue; the API stays fast and stateless.
+- **Smart filter (LLM experiment)** — natural language → structured search
+  filters. A small local LLM (Ollama, e.g. `qwen2.5:1.5b`) decides alone what
+  the request means and returns the filters as JSON; when the LLM is not
+  available, a rule-based parser takes over so the feature never breaks.
+  Treat it as an experiment: the model occasionally guesses details that were
+  not asked for — the filled-in filters can always be fine-tuned by hand.
 
 ## Results
 
@@ -81,10 +94,55 @@ What makes it work:
   field) are detected and excluded from training, placeholder prices get no
   deal verdict
 
+## Using the app
+
+- **Listings** – the main feed with a wide table: sortable columns (click a
+  header: ascending → descending → off), multiselect filters (make, model,
+  fuel, gearbox, body, drive), numeric ranges (price, year, mileage, power),
+  deal verdicts and profit columns. Filters are persisted in the URL and in
+  `localStorage`, so a view can be shared as a link and survives a reload.
+- **Smart filter** – the input above the filter bar (LLM experiment, see
+  below): write what you want in any language and the filters fill in.
+- **Car detail** – fair price with prediction interval and deal verdict,
+  a per-feature price breakdown (TreeSHAP, sums exactly to the fair price),
+  price history chart, similar live offers, and a share image with social
+  network preview.
+- **Price calculator** – "what would be a fair price for *this* car?" with a
+  full configuration form.
+- **Insights** – market charts: price distribution, market by make/body/fuel,
+  depreciation, days on market and more.
+- **Compare** – up to three cars side by side.
+- **Admin** – scrape runs and statistics, model/tier metrics, retrain.
+
+## Smart filter (LLM experiment)
+
+The search bar on the Listings page accepts natural language, in any language:
+
+```
+kombi do 15 000 €, od 2019, diesel
+family SUV, automatic, under 25k
+elektromobil s dojazdom... (napíš hocako)
+```
+
+A small local LLM (via [Ollama](https://ollama.com), default `qwen2.5:1.5b`)
+converts the request to structured filters and the UI fills in the filter
+controls, which can then be fine-tuned by hand. The model alone decides what
+the text means — no keyword matching. This is an **experiment**: the model
+sometimes guesses details that were not requested. When no LLM is reachable, a
+rule-based parser provides a basic fallback so the feature keeps working.
+
+Configuration (optional):
+
+```bash
+OLLAMA_URL=http://life_os_ollama:11434   # any Ollama server
+OLLAMA_MODEL=qwen2.5:1.5b               # any chat model
+```
+
 ## Tech stack
 
 Python 3.12 · FastAPI · SQLModel + Alembic · PostgreSQL · Redis · LightGBM ·
-React 19 · Vite · Tailwind CSS · Docker · GitHub Actions
+Optuna · React 19 · Vite · Tailwind CSS · Docker · GitHub Actions · Ollama
+(optional, for the smart filter)
 
 ## Quick start (local)
 
@@ -128,6 +186,36 @@ Notes:
 - Background scraping runs in the `car-platform-worker` container (daily
   schedule, see `SCRAPE_SCHEDULE_HOUR`). Check progress in the admin UI.
 
+## Configuration
+
+Everything is configured through environment variables (`.env` in production,
+sensible defaults otherwise) — see [`.env.example`](.env.example) for the full
+list with comments. Highlights:
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `SCRAPE_SCHEDULE_HOUR` | hour of the daily full crawl | `22` |
+| `SCRAPE_MAX_PER_HOUR` | hard request cap per hour (politeness) | `500` |
+| `SCHEDULE_TZ` | timezone for schedules | `Europe/Bratislava` |
+| `OPTUNA_TRIALS` | hyperparameter search per market tier (`0` = fast) | `10` |
+| `AUTO_RETRAIN_WEEKDAY` / `AUTO_RETRAIN_HOUR` | weekly automatic retrain | Sunday 07:00 |
+| `OLLAMA_URL` / `OLLAMA_MODEL` | local LLM for the smart filter (optional) | see above |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | admin account, seeded on first start | – |
+
+## Development & testing
+
+```bash
+# backend: lint + tests (SQLite, fast, no external services needed)
+cd backend && ruff check app tests && pytest
+
+# frontend: unit tests + build
+cd frontend && npm run test && npm run build
+```
+
+CI (`.github/workflows/ci.yml`) runs the same checks on every push: ruff,
+pytest, vitest and a production frontend build. The demo GIF and screenshots
+are captured from the live demo by `.github/workflows/demo.yml` (Playwright).
+
 ## Scraping
 
 The scraper runs in a separate worker container and consumes jobs from a queue.
@@ -156,11 +244,12 @@ curl -X POST "http://localhost:8000/api/admin/scrape/full?max_segments=3" \
 
 ```
 backend/            API + background workers (same image, different command)
-  app/api/          HTTP endpoints (listings, predictions, admin)
+  app/api/          HTTP endpoints (listings, predictions, ask, admin)
   app/core/         auth, password hashing, rate limiting
   app/db/           models, migrations (Alembic), session
   app/ml/           feature engineering, training, prediction
   app/scraping/     source-site scraper + Redis job queue
+  app/assistant.py  smart filter: LLM parsing + rule-based fallback
 frontend/           React SPA (Vite + Tailwind CSS)
 scripts/            demo capture (Playwright) and GIF maker
 docs/               demo GIF + screenshots (auto-refreshed by CI)
