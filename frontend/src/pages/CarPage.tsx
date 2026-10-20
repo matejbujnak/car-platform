@@ -13,7 +13,13 @@ import ErrorState from "../components/ErrorState";
 import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
 import { LineChart } from "../components/charts";
-import { formatKm, formatPrice } from "../components/format";
+import {
+  formatDrive,
+  formatFuel,
+  formatGearbox,
+  formatKm,
+  formatPrice,
+} from "../components/format";
 
 const SIMILAR_PAGE = 8;
 
@@ -68,8 +74,8 @@ export default function CarPage() {
           <h1 className="text-2xl font-bold">{car.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {car.year} · {formatKm(car.mileage_km)} ·{" "}
-            {car.power_kw ? `${car.power_kw} kW` : "—"} · {car.fuel ?? "—"} ·{" "}
-            {car.gearbox ?? "—"}
+            {car.power_kw ? `${car.power_kw} kW` : "—"} · {formatFuel(car.fuel)} ·{" "}
+            {formatGearbox(car.gearbox)}
           </p>
           <p className="mt-1 text-sm text-slate-400">
             {car.seller_type === "dealer"
@@ -96,10 +102,10 @@ export default function CarPage() {
               <Spec label="Mileage" value={formatKm(car.mileage_km)} />
               <Spec label="Power" value={car.power_kw ? `${car.power_kw} kW` : "—"} />
               <Spec label="Engine" value={car.engine_cc ? `${car.engine_cc} cm³` : "—"} />
-              <Spec label="Fuel" value={car.fuel ?? "—"} />
-              <Spec label="Gearbox" value={car.gearbox ?? "—"} />
+              <Spec label="Fuel" value={formatFuel(car.fuel)} />
+              <Spec label="Gearbox" value={formatGearbox(car.gearbox)} />
               <Spec label="Body" value={car.body ?? "—"} />
-              <Spec label="Drive" value={car.drive ?? "—"} />
+              <Spec label="Drive" value={formatDrive(car.drive)} />
             </dl>
           </Panel>
 

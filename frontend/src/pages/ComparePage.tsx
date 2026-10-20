@@ -3,7 +3,13 @@ import { Link } from "react-router-dom";
 import { fetchListings, type Listing } from "../api";
 import { clearCompare, getCompareIds, toggleCompare } from "../compare";
 import DealBadge from "../components/DealBadge";
-import { formatKm, formatPrice } from "../components/format";
+import {
+  formatDrive,
+  formatFuel,
+  formatGearbox,
+  formatKm,
+  formatPrice,
+} from "../components/format";
 
 /** Side-by-side comparison of up to three cars. */
 export default function ComparePage() {
@@ -75,10 +81,10 @@ export default function ComparePage() {
     { label: "Mileage", render: (car) => formatKm(car.mileage_km) },
     { label: "Power", render: (car) => (car.power_kw ? `${car.power_kw} kW` : "—") },
     { label: "Engine", render: (car) => (car.engine_cc ? `${car.engine_cc} cm³` : "—") },
-    { label: "Fuel", render: (car) => car.fuel ?? "—" },
-    { label: "Gearbox", render: (car) => car.gearbox ?? "—" },
+    { label: "Fuel", render: (car) => formatFuel(car.fuel) },
+    { label: "Gearbox", render: (car) => formatGearbox(car.gearbox) },
     { label: "Body", render: (car) => car.body ?? "—" },
-    { label: "Drive", render: (car) => car.drive ?? "—" },
+    { label: "Drive", render: (car) => formatDrive(car.drive) },
     {
       label: "Links",
       render: (car) => (

@@ -121,6 +121,13 @@ def test_power_and_fuel_filters_and_sorts(client, session, sample_listing):
         assert resp.json()["total"] == 1, sort
 
 
+def test_drive_filter_matches_by_meaning(client, session, sample_listing):
+    # The sample lists its drive as "Predny"; the filter canonicalizes
+    # Slovak/English labels ("Predný", "Front drive", "front" ...).
+    assert client.get("/api/listings?drive=front").json()["total"] == 1
+    assert client.get("/api/listings?drive=rear").json()["total"] == 0
+
+
 def test_price_history_is_recorded(client, session, sample_listing):
     """A new listing gets one price point; price changes add more."""
     from app.scraping.store import upsert_listings

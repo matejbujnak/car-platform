@@ -166,7 +166,29 @@ def list_listings(
         if bodies:
             conditions.append(Listing.body.in_(bodies))
     if drive:
-        conditions.append(Listing.drive == drive)
+        # Drive labels mix Slovak and English ("Predný", "Front drive" ...)
+        # - match by meaning instead of the exact string.
+        drive_patterns = []
+        for value in drive.split(","):
+            v = value.strip().lower()
+            if v == "front" or "predn" in v or "front" in v:
+                drive_patterns.append(
+                    or_(Listing.drive.ilike("%predn%"), Listing.drive.ilike("%front%"))
+                )
+            elif v == "rear" or "zadn" in v or "rear" in v:
+                drive_patterns.append(
+                    or_(Listing.drive.ilike("%zadn%"), Listing.drive.ilike("%rear%"))
+                )
+            elif v == "4x4" or "4x4" in v or "awd" in v:
+                drive_patterns.append(Listing.drive.ilike("%4x4%"))
+            elif v == "other" or "iné" in v or "ine" in v:
+                drive_patterns.append(
+                    or_(Listing.drive.ilike("%iné%"), Listing.drive.ilike("%ine%"))
+                )
+            elif value.strip():
+                drive_patterns.append(Listing.drive == value.strip())
+        if drive_patterns:
+            conditions.append(or_(*drive_patterns))
     if price_min is not None:
         conditions.append(Listing.price_eur >= price_min)
     if price_max is not None:

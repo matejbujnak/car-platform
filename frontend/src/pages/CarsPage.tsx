@@ -11,8 +11,12 @@ import DealBadge from "../components/DealBadge";
 import MultiSelect from "../components/MultiSelect";
 import {
   BODY_OPTIONS,
+  DRIVE_FILTER_OPTIONS,
   FUEL_OPTIONS,
   GEARBOX_OPTIONS,
+  formatDrive,
+  formatFuel,
+  formatGearbox,
   formatKm,
   formatPrice,
 } from "../components/format";
@@ -268,6 +272,12 @@ export default function CarsPage() {
           onChange={(v) => set("body", v)}
           options={BODY_OPTIONS}
         />
+        <MultiSelect
+          placeholder="Drive"
+          value={draft.drive}
+          onChange={(v) => set("drive", v)}
+          options={DRIVE_FILTER_OPTIONS}
+        />
         <input
           className={`${inputCls} w-28`}
           value={draft.year_min}
@@ -364,6 +374,7 @@ export default function CarsPage() {
               <SortTh label="Fuel" k="fuel" sort={applied.sort} onClick={onSortClick} />
               <SortTh label="KW" k="power" sort={applied.sort} onClick={onSortClick} right />
               <th className="px-4 py-2.5">Gearbox</th>
+              <th className="px-4 py-2.5">Drive</th>
               <SortTh label="Price" k="price" sort={applied.sort} onClick={onSortClick} right />
               <SortTh label="Fair" k="fair" sort={applied.sort} onClick={onSortClick} right />
               <SortTh label="Profit €" k="profit" sort={applied.sort} onClick={onSortClick} right />
@@ -375,7 +386,7 @@ export default function CarsPage() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={12} className="py-16 text-center text-slate-400">
+                <td colSpan={13} className="py-16 text-center text-slate-400">
                   Loading…
                 </td>
               </tr>
@@ -461,13 +472,16 @@ function Row({ car }: { car: Listing }) {
         {formatKm(car.mileage_km)}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-        {car.fuel ?? "—"}
+        {formatFuel(car.fuel)}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right text-slate-600">
         {car.power_kw ?? "—"}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-slate-600">
-        {car.gearbox ?? "—"}
+        {formatGearbox(car.gearbox)}
+      </td>
+      <td className="whitespace-nowrap px-4 py-3 text-slate-600">
+        {formatDrive(car.drive)}
       </td>
       <td className="whitespace-nowrap px-4 py-3 text-right font-semibold">
         {formatPrice(car.price_eur)}
