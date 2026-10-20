@@ -40,3 +40,11 @@ def incr_window_counter(name: str, window_seconds: int) -> int:
     pipe.expire(key, window_seconds)
     results = pipe.execute()
     return int(results[0])
+
+
+def window_counter_total(name: str, hours: int) -> int:
+    """Sum of the per-hour counters over the last `hours` hour buckets."""
+    current = int(time.time()) // 3600
+    keys = [f"tasks:counter:{name}:{current - i}" for i in range(hours)]
+    values = client().mget(keys)
+    return sum(int(value or 0) for value in values)

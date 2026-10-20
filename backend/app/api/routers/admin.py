@@ -1,12 +1,13 @@
 """Admin endpoints: job triggers and monitoring."""
 
 from fastapi import APIRouter, Depends, Query, Request
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
+from datetime import timedelta
 
 from app import config
 from app.scraping import jobs
 from app.core.auth import get_current_user, require_roles
-from app.db.models import ModelVersion, Role, ScrapeRun, User
+from app.db.models import ModelVersion, Role, ScrapeRun, User, utcnow
 from app.db.session import get_session
 from app.core.rate_limit import limiter
 
@@ -65,6 +66,55 @@ def scrape_runs(session: Session = Depends(get_session)) -> list[dict]:
         }
         for run in runs
     ]
+
+
+@router.get("/scrape/stats")
+def scrape_stats(session: Session = Depends(get_session)) -> dict:
+    """Scraping throughput and schedule - to tune the politeness limits."""
+    latest_full = session.exec(
+        select(ScrapeRun)
+        .where(ScrapeRun.kind == ScrapeRun.Kind.full)
+        .order_by(ScrapeRun.id.desc())
+        .limit(1)
+    ).first()
+
+    day_ago = utcnow() - timedelta(hours=24)
+    runs_24h = session.exec(
+        select(func.count()).select_from(ScrapeRun).where(ScrapeRun.started_at >= day_ago)
+    ).one()
+
+    last_crawl = None
+    if latest_full is not None:
+        duration = None
+        if latest_full.finished_at is not None:
+            duration = round(
+                (latest_full.finished_at - latest_full.started_at).total_seconds() / 3600, 1
+            )
+        last_crawl = {
+            "started_at": latest_full.started_at.isoformat(),
+            "finished_at": latest_full.finished_at.isoformat() if latest_full.finished_at else None,
+            "duration_hours": duration,
+            "status": latest_full.status.value,
+            "segments_done": latest_full.segments_done,
+            "segments_total": latest_full.segments_total,
+            "segments_failed": latest_full.segments_failed,
+            "listings_new": latest_full.listings_new,
+            "listings_updated": latest_full.listings_updated,
+        }
+
+    return {
+        "requests_last_hour": jobs.window_counter_total("scrape-requests", 1),
+        "requests_last_24h": jobs.window_counter_total("scrape-requests", 24),
+        "hourly_cap": config.SCRAPE_MAX_PER_HOUR,
+        "delays_seconds": [config.SCRAPE_MIN_DELAY_SECONDS, config.SCRAPE_MAX_DELAY_SECONDS],
+        "crawl_hour": config.SCRAPE_SCHEDULE_HOUR,
+        "runs_last_24h": int(runs_24h),
+        "last_full_crawl": last_crawl,
+        "auto_retrain": {
+            "weekday": config.AUTO_RETRAIN_WEEKDAY,
+            "hour": config.AUTO_RETRAIN_HOUR,
+        },
+    }
 
 
 @router.get("/models")

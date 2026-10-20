@@ -201,6 +201,41 @@ def charts(session: Session = Depends(get_session)) -> dict:
     ).all()
     mileage_found = {row[0]: row for row in mileage_rows}
 
+    # Days on market for cars that disappeared (approximates time to sale).
+    day_buckets = [
+        ("0–7 days", 0, 7),
+        ("8–14", 8, 15),
+        ("15–30", 15, 31),
+        ("31–60", 31, 61),
+        ("60+ days", 61, 10**9),
+    ]
+    days_counts = {label: 0 for label, _lo, _hi in day_buckets}
+    model_days: dict[str, list[int]] = {}
+    sold_rows = session.exec(
+        select(Listing.make, Listing.model, Listing.first_seen, Listing.last_seen).where(
+            Listing.status == "sold",
+            Listing.offer_type == "sale",
+        )
+    ).all()
+    for make, model, first_seen, last_seen in sold_rows:
+        days = max((last_seen - first_seen).days, 0)
+        for label, lo, hi in day_buckets:
+            if lo <= days < hi:
+                days_counts[label] += 1
+                break
+        key = f"{make} {model}"
+        model_days.setdefault(key, []).append(days)
+
+    days_on_market = [{"label": label, "value": count} for label, count in days_counts.items()]
+    selling_speed = sorted(
+        [
+            {"label": key, "value": round(sum(v) / len(v))}
+            for key, v in model_days.items()
+            if len(v) >= 5
+        ],
+        key=lambda point: point["value"],
+    )[:10]
+
     return {
         "price_histogram": bucket_counts(PRICE_BUCKETS, Listing.price_eur),
         "mileage_price": [
@@ -224,5 +259,7 @@ def charts(session: Session = Depends(get_session)) -> dict:
         "seller_mix": seller_mix,
         "new_listings": new_listings,
         "deal_scores": [{"label": key, "value": value} for key, value in deal_scores.items()],
+        "days_on_market": days_on_market,
+        "selling_speed": selling_speed,
         "verdicts": [{"label": key, "value": value} for key, value in verdicts.items()],
     }

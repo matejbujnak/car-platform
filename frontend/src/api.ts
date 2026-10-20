@@ -126,6 +126,8 @@ export interface ChartsData {
   seller_mix: ChartPoint[];
   new_listings: ChartPoint[];
   deal_scores: ChartPoint[];
+  days_on_market: ChartPoint[];
+  selling_speed: ChartPoint[];
   verdicts: ChartPoint[];
 }
 
@@ -187,6 +189,31 @@ export function logout(): void {
 
 export function fetchScrapeRuns(): Promise<ScrapeRun[]> {
   return request("/api/admin/scrape/runs");
+}
+
+export interface ScrapeStats {
+  requests_last_hour: number;
+  requests_last_24h: number;
+  hourly_cap: number;
+  delays_seconds: [number, number];
+  crawl_hour: number;
+  runs_last_24h: number;
+  last_full_crawl: {
+    started_at: string;
+    finished_at: string | null;
+    duration_hours: number | null;
+    status: string;
+    segments_done: number;
+    segments_total: number;
+    segments_failed: number;
+    listings_new: number;
+    listings_updated: number;
+  } | null;
+  auto_retrain: { weekday: number; hour: number };
+}
+
+export function fetchScrapeStats(): Promise<ScrapeStats> {
+  return request("/api/admin/scrape/stats");
 }
 
 export function fetchModels(): Promise<ModelInfo[]> {

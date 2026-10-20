@@ -19,7 +19,8 @@ jobs:
         run: pip install -r backend/requirements.txt -r backend/requirements-dev.txt
 
       - name: Lint
-        run: ruff check backend
+        working-directory: backend
+        run: ruff check app tests
 
       - name: Tests
         run: pytest backend/tests

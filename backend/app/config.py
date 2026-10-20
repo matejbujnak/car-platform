@@ -68,6 +68,10 @@ SCRAPE_SCHEDULE_HOUR = int(os.getenv("SCRAPE_SCHEDULE_HOUR", "22"))
 # Timezone for SCRAPE_SCHEDULE_HOUR and the scrape window hours.
 SCHEDULE_TZ = os.getenv("SCHEDULE_TZ", "UTC")
 
+# Weekly automatic retraining (fresh data -> fresher model).
+AUTO_RETRAIN_WEEKDAY = int(os.getenv("AUTO_RETRAIN_WEEKDAY", "6"))  # 0=Mon .. 6=Sun
+AUTO_RETRAIN_HOUR = int(os.getenv("AUTO_RETRAIN_HOUR", "7"))
+
 
 def check_production_settings() -> None:
     """Refuse to run in production when required secrets are missing."""

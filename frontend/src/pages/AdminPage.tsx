@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   fetchModels,
   fetchScrapeRuns,
+  fetchScrapeStats,
   login,
   logout,
   triggerFullScrape,
@@ -10,6 +11,7 @@ import {
   triggerScrape,
   type ModelInfo,
   type ScrapeRun,
+  type ScrapeStats,
 } from "../api";
 import { formatPrice } from "../components/format";
 
@@ -69,11 +71,13 @@ function Login({ onLogin }: { onLogin: (t: string) => void }) {
 function Dashboard({ onLogout }: { onLogout: () => void }) {
   const [runs, setRuns] = useState<ScrapeRun[]>([]);
   const [models, setModels] = useState<ModelInfo[]>([]);
+  const [scrapeStats, setScrapeStats] = useState<ScrapeStats | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
   const refresh = () => {
     fetchScrapeRuns().then(setRuns).catch(console.error);
     fetchModels().then(setModels).catch(console.error);
+    fetchScrapeStats().then(setScrapeStats).catch(console.error);
   };
   useEffect(refresh, []);
 
@@ -127,6 +131,33 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <Button label="Refresh" onClick={refresh} />
         {message && <span className="text-sm text-slate-400">{message}</span>}
       </section>
+
+      {/* Scraper throughput */}
+      {scrapeStats && (
+        <section className="mt-6 grid grid-cols-2 gap-px border border-slate-200 bg-slate-200 lg:grid-cols-5">
+          <Stat
+            label="Requests last hour"
+            value={`${scrapeStats.requests_last_hour} / ${scrapeStats.hourly_cap}`}
+          />
+          <Stat
+            label="Requests last 24h"
+            value={scrapeStats.requests_last_24h.toLocaleString("en-US")}
+          />
+          <Stat label="Runs last 24h" value={String(scrapeStats.runs_last_24h)} />
+          <Stat
+            label="Last full crawl"
+            value={
+              scrapeStats.last_full_crawl
+                ? `${scrapeStats.last_full_crawl.duration_hours ?? "?"} h · ${scrapeStats.last_full_crawl.segments_done}/${scrapeStats.last_full_crawl.segments_total} seg`
+                : "—"
+            }
+          />
+          <Stat
+            label="Auto retrain"
+            value={`day ${scrapeStats.auto_retrain.weekday} · ${String(scrapeStats.auto_retrain.hour).padStart(2, "0")}:00`}
+          />
+        </section>
+      )}
 
       {/* Models */}
       <section className="mt-8">
@@ -325,5 +356,14 @@ function Button({
     >
       {label}
     </button>
+  );
+}
+
+function Stat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white px-4 py-3">
+      <div className="text-sm font-semibold text-slate-900">{value}</div>
+      <div className="text-xs text-slate-500">{label}</div>
+    </div>
   );
 }

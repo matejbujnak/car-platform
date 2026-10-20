@@ -14,7 +14,7 @@ from sqlalchemy import text
 from sqlmodel import Session, select
 
 from app import config
-from app.db.models import Listing, Prediction, ScrapeRun, utcnow
+from app.db.models import Listing, ModelVersion, Prediction, ScrapeRun, utcnow
 from app.db.session import engine
 from app.ml.features import plausible_price
 from app.ml.predict import CAR_FIELDS, active_model, deal_verdict, load_artifact, predict_prices
@@ -41,6 +41,19 @@ QUICK_FILTERS = {
 
 
 # --- scheduling -------------------------------------------------------------
+
+def _auto_retrain_due(session: Session, now: datetime) -> bool:
+    """True when the weekly retraining should run (fresh data -> fresh model)."""
+    if (
+        now.weekday() != config.AUTO_RETRAIN_WEEKDAY
+        or now.hour < config.AUTO_RETRAIN_HOUR
+    ):
+        return False
+    week_ago = utcnow() - timedelta(days=7)
+    recent = session.exec(
+        select(ModelVersion).where(ModelVersion.trained_at >= week_ago).limit(1)
+    ).first()
+    return recent is None
 
 def _crawl_complete(run: ScrapeRun) -> bool:
     return (
@@ -399,12 +412,24 @@ def main() -> None:
             jobs.enqueue({"type": "scrape_full", "resume": True})
 
     last_sweep = 0.0
+    last_retrain_enqueue = 0.0
     while True:
         try:
+            now = datetime.now(ZoneInfo(config.SCHEDULE_TZ))
             with Session(engine) as session:
-                if _full_scrape_pending(session, datetime.now(ZoneInfo(config.SCHEDULE_TZ))):
+                if _full_scrape_pending(session, now):
                     log.info("Queueing the scheduled full crawl")
                     jobs.enqueue({"type": "scrape_full", "scheduled": True})
+
+                # Weekly model retraining keeps the model in sync with the
+                # market; enqueued at most once per hour (training takes time).
+                if (
+                    _auto_retrain_due(session, now)
+                    and time.monotonic() - last_retrain_enqueue > 3600
+                ):
+                    last_retrain_enqueue = time.monotonic()
+                    log.info("Queueing the weekly model retraining")
+                    jobs.enqueue({"type": "train_model", "scheduled": True})
 
             # Periodic sweep: make sure no listing is left without a prediction
             # (covers crashes between scrape/training and backfill). Skipped when
