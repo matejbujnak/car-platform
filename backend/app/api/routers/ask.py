@@ -17,14 +17,10 @@ class Question(BaseModel):
 
 @router.post("/parse")
 @limiter.limit("20/minute")
-def ask_parse(
-    request: Request,
-    body: Question,
-    session: Session = Depends(get_session),
-) -> dict:
-    """Natural language -> structured search filters (LLM + rules + data
-    validation). The filters use the same keys as the listing filters."""
-    filters, source = extract_filters(body.question, session)
+def ask_parse(request: Request, body: Question) -> dict:
+    """Natural language -> structured search filters (LLM experiment, with a
+    rule-based fallback). The filters use the same keys as the listing filters."""
+    filters, source = extract_filters(body.question)
     return {"question": body.question, "filters": filters, "source": source}
 
 

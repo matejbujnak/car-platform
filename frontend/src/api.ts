@@ -178,7 +178,7 @@ export function askAnswer(question: string): Promise<AskAnswerResult> {
 export interface AskParseResult {
   question: string;
   filters: Record<string, string | number>;
-  source: "llm" | "rules" | "llm+rules";
+  source: "llm" | "rules";
 }
 
 export function askParse(question: string): Promise<AskParseResult> {

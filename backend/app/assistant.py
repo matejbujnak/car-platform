@@ -83,7 +83,11 @@ _LIST_KEYS = {"make", "model", "fuel", "body"}
 
 
 def _clean_filters(raw: dict) -> dict:
-    """Keep only known keys with sane values (the LLM output is untrusted)."""
+    """Keep only known keys with sane types so the UI can use them.
+
+    This is pure schema validation (numbers are numbers, enums are valid
+    values) - the meaning of the question is decided by the LLM alone.
+    """
     filters: dict = {}
     for key, value in raw.items():
         if key in _NUMBER_KEYS:
@@ -94,8 +98,9 @@ def _clean_filters(raw: dict) -> dict:
             if 0 < number < 10**7:
                 filters[key] = number
         elif key in _ENUMS:
-            if str(value).lower() in _ENUMS[key]:
-                filters[key] = str(value).lower()
+            lowered = str(value).lower()
+            if lowered in _ENUMS[key]:
+                filters[key] = lowered
         elif key in _LIST_KEYS and isinstance(value, list):
             items = [str(v).strip() for v in value if str(v).strip()]
             if items:
@@ -131,18 +136,19 @@ def parse_with_llm(question: str) -> dict | None:
         return None
 
 
-def extract_filters(question: str, session: Session | None = None) -> tuple[dict, str]:
-    """Best available question -> filters. Returns (filters, source).
+def extract_filters(question: str) -> tuple[dict, str]:
+    """Natural language -> filters. Returns (filters, source).
 
-    Both sources return the same keys the listing filters use, so the UI can
-    fill its controls directly. Explicit keywords in the text ("naftovy",
-    "kombi", "automat") come from the rule parser - small LLMs are unreliable
-    there; phrasing and numbers ("not older than", "up to") come from the LLM.
-    Hallucinated makes/models are dropped against the real data.
+    An LLM experiment: the model alone decides what the question means (its
+    guesses included). The rule-based parser is only a fallback for when the
+    model is not available.
     """
-    llm = parse_with_llm(question) or {}
-    rules: dict = {}
+    filters = parse_with_llm(question)
+    if filters is not None:
+        return filters, "llm"
+
     raw = parse_question(question)
+    rules: dict = {}
     for key, value in raw.items():
         if key == "bodies":
             rules["body"] = ",".join(value)
@@ -150,40 +156,7 @@ def extract_filters(question: str, session: Session | None = None) -> tuple[dict
             rules["fuel"] = ",".join(value)
         elif key != "limit":
             rules[key] = value
-
-    merged = dict(llm)
-    # Explicit keywords beat the model; the model is better at phrasing.
-    for key in ("fuel", "body", "gearbox", "drive", "verdict", "sort"):
-        if key in rules:
-            merged[key] = rules[key]
-    for key, value in rules.items():
-        merged.setdefault(key, value)
-
-    # Drop hallucinated makes/models - they must exist in the data.
-    if session is not None:
-        if merged.get("make"):
-            known = set(session.exec(select(Listing.make).distinct()).all())
-            keeps = [m for m in merged["make"].split(",") if m in known]
-            if keeps:
-                merged["make"] = ",".join(keeps)
-            else:
-                merged.pop("make", None)
-                merged.pop("model", None)
-        if merged.get("model"):
-            known_models = set(session.exec(select(Listing.model).distinct()).all())
-            keeps = [m for m in merged["model"].split(",") if m in known_models]
-            if keeps:
-                merged["model"] = ",".join(keeps)
-            else:
-                merged.pop("model", None)
-
-    if llm and rules:
-        source = "llm+rules"
-    elif llm:
-        source = "llm"
-    else:
-        source = "rules"
-    return merged, source
+    return rules, "rules"
 
 
 # --- rule-based fallback ----------------------------------------------------
@@ -221,85 +194,97 @@ def _to_number(raw: str, suffix: Optional[str]) -> int:
     return int(value)
 
 
-def parse_question(question: str) -> dict:
-    """Extract structured search intent from a natural-language question."""
-    text = f" {question} "
-    lowered = text.lower()
-    filters: dict = {}
+def _normalize_year_phrases(text: str) -> str:
+    """Turn year phrases into simple "od"/"do" so direction cannot be flipped:
+    "nie je staršie ako 2020" == "od 2020", "staršie ako 2020" == "do 2020"."""
 
-    # Price range: "do 50k", "do 50 000 €", "do 20000 eur", "under 30k"
-    price_max = re.search(
-        rf"(?:do\s*ceny|do|max|under|below)\s*{_MONEY}", lowered
-    )
-    if price_max:
-        filters["price_max"] = _to_number(price_max.group(1), price_max.group(2))
-    price_min = re.search(
-        rf"(?:od\s*ceny|od|nad|above|from|aspoň|aspon|min)\s*{_MONEY}", lowered
-    )
-    if price_min:
-        value = _to_number(price_min.group(1), price_min.group(2))
-        if value != filters.get("price_max"):
-            filters["price_min"] = value
-
-    # Year: "od 2019", "not older than 2020", "nie je staršie ako 2020".
-    # A negated "older than" means "from" - normalize the phrase to "od"/"do"
-    # before matching, so the year direction is never flipped.
     def _year_phrase(match: "re.Match[str]") -> str:
         phrase = match.group(0).lower()
-        prefix = lowered[max(0, match.start() - 25) : match.start()]
+        prefix = text[max(0, match.start() - 25) : match.start()]
         negative = any(word in prefix for word in ("nie", "not", "nech"))
         older = "star" in phrase or "older" in phrase
         return "od" if older == negative else "do"
 
-    year_text = re.sub(
+    return re.sub(
         r"star[sš]ie\s+ako|older\s+than|nov[sš]ie\s+ako|newer\s+than",
         _year_phrase,
-        lowered,
+        text,
     )
-    year_from = re.search(rf"(?:od\s*roku|od|od\s*ročníka|od\s*rocnika|since|from)\s*{_YEAR}", year_text)
+
+
+def parse_question(question: str) -> dict:
+    """Extract structured search intent from a natural-language question.
+
+    Fragments are matched and removed in order (year -> km -> kW -> price) so
+    that "do 2020" becomes a year and not a price, and "do 100 000 km" is not
+    read as thousands of euros.
+    """
+    working = _normalize_year_phrases(f" {question} ".lower())
+    filters: dict = {}
+
+    # Year: "od 2019", "do roku 2022"
+    year_from = re.search(rf"(?:od\s*roku|od|od\s*ročníka|od\s*rocnika|since|from)\s*{_YEAR}", working)
     if year_from:
         filters["year_min"] = int(year_from.group(1))
-    year_to = re.search(rf"(?:do\s*roka|do|do\s*ročníka|do\s*rocnika|until)\s*{_YEAR}", year_text)
+        working = working.replace(year_from.group(0), " ", 1)
+    year_to = re.search(rf"(?:do\s*roka|do|do\s*ročníka|do\s*rocnika|until)\s*{_YEAR}", working)
     if year_to:
         filters["year_max"] = int(year_to.group(1))
+        working = working.replace(year_to.group(0), " ", 1)
 
     # Mileage: "do 100 000 km", "do 100k km"
-    mileage = re.search(_KM, lowered)
+    mileage = re.search(_KM, working)
     if mileage:
         filters["mileage_max"] = _to_number(mileage.group(1), mileage.group(2))
+        working = working.replace(mileage.group(0), " ", 1)
 
     # Power: "aspoň 150 kW", "nad 100 kW", "do 200 kW"
-    power_min = re.search(rf"(?:aspoň|aspon|nad|od|at least|from|min)\s*{_KW}", lowered)
+    power_min = re.search(rf"(?:aspoň|aspon|nad|od|at least|from|min)\s*{_KW}", working)
     if power_min:
         filters["power_min"] = _to_number(power_min.group(1), None)
-    power_max = re.search(rf"(?:do|max|under|below)\s*{_KW}", lowered)
+        working = working.replace(power_min.group(0), " ", 1)
+    power_max = re.search(rf"(?:do|max|under|below)\s*{_KW}", working)
     if power_max:
         filters["power_max"] = _to_number(power_max.group(1), None)
+        working = working.replace(power_max.group(0), " ", 1)
+
+    # Price: "do 50k", "do 20 000 €", bare "do 50000"
+    price_max = re.search(rf"(?:do\s*ceny|do|max|under|below)\s*{_MONEY}", working)
+    if price_max:
+        value = _to_number(price_max.group(1), price_max.group(2))
+        if value >= 300:
+            filters["price_max"] = value
+            working = working.replace(price_max.group(0), " ", 1)
+    price_min = re.search(rf"(?:od\s*ceny|od|nad|above|from|aspoň|aspon|min)\s*{_MONEY}", working)
+    if price_min:
+        value = _to_number(price_min.group(1), price_min.group(2))
+        if value >= 300 and value != filters.get("price_max"):
+            filters["price_min"] = value
 
     # Fuel / body / gearbox / drive keywords.
     for fuel, words in FUEL_KEYWORDS.items():
-        if any(word in lowered for word in words):
+        if any(word in working for word in words):
             filters.setdefault("fuels", []).append(fuel)
     for body, words in BODY_KEYWORDS.items():
-        if any(word in lowered for word in words):
+        if any(word in working for word in words):
             filters.setdefault("bodies", []).append(body)
-    if "manuál" in lowered or "manual" in lowered:
+    if "manuál" in working or "manual" in working:
         filters["gearbox"] = "manual"
-    elif "automat" in lowered:
+    elif "automat" in working:
         filters["gearbox"] = "automatic"
-    if "4x4" in lowered or "quattro" in lowered or "štvorkolk" in lowered or "stvorkolk" in lowered:
+    if "4x4" in working or "quattro" in working or "štvorkolk" in working or "stvorkolk" in working:
         filters["drive"] = "4x4"
-    elif "predn" in lowered or "front" in lowered:
+    elif "predn" in working or "front" in working:
         filters["drive"] = "front"
-    elif "zadn" in lowered or "rear" in lowered:
+    elif "zadn" in working or "rear" in working:
         filters["drive"] = "rear"
 
     # What is the user looking for?
-    if any(w in lowered for w in ("deal", "oplat", "pod cenu", "undervalued")):
+    if any(w in working for w in ("deal", "oplat", "pod cenu", "undervalued")):
         filters["sort"] = "deal_best"
-    elif any(w in lowered for w in ("najdrah", "most expensive", "premium")):
+    elif any(w in working for w in ("najdrah", "most expensive", "premium")):
         filters["sort"] = "price_high"
-    elif any(w in lowered for w in ("najlacn", "cheapest", "lacn", "low price")):
+    elif any(w in working for w in ("najlacn", "cheapest", "lacn", "low price")):
         filters["sort"] = "price_low"
 
     filters["limit"] = 8

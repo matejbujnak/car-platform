@@ -240,7 +240,7 @@ export default function CarsPage() {
       const keys = Object.keys(res.filters);
       setSmartNote(
         keys.length
-          ? `Understood (${res.source}): ${keys.join(", ")}`
+          ? `Understood by ${res.source === "llm" ? "LLM" : "rules"}: ${keys.join(", ")}`
           : "Nothing to filter here - showing all cars",
       );
     } catch {
@@ -280,7 +280,7 @@ export default function CarsPage() {
           <input
             value={smartQuery}
             onChange={(e) => setSmartQuery(e.target.value)}
-            placeholder='Smart filter - describe what you want in any language, e.g. "kombi do 15 000 €, od 2019, diesel"'
+            placeholder='Smart filter (LLM experiment) - write anything in any language, e.g. "kombi do 15 000 €, od 2019, diesel"'
             className="flex-1 rounded border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
           />
           <button
