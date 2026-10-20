@@ -30,6 +30,8 @@ interface Filters {
   drive: string;
   price_min: string;
   price_max: string;
+  power_min: string;
+  power_max: string;
   year_min: string;
   year_max: string;
   mileage_max: string;
@@ -50,6 +52,8 @@ const EMPTY: Filters = {
   drive: "",
   price_min: "",
   price_max: "",
+  power_min: "",
+  power_max: "",
   year_min: "",
   year_max: "",
   mileage_max: "",
@@ -62,11 +66,13 @@ const EMPTY: Filters = {
 
 // Column sorting: 1st click -> one direction, 2nd click -> reverse,
 // 3rd click -> sorting off (back to newest first).
-type SortKey = "year" | "km" | "price" | "fair" | "profit" | "deal";
+type SortKey = "year" | "km" | "power" | "fuel" | "price" | "fair" | "profit" | "deal";
 
 const SORT_CYCLE: Record<SortKey, [string, string]> = {
   year: ["year_new", "year_old"],
   km: ["mileage_low", "mileage_high"],
+  power: ["power_high", "power_low"],
+  fuel: ["fuel_az", "fuel_za"],
   price: ["price_low", "price_high"],
   fair: ["fair_low", "fair_high"],
   profit: ["profit_best", "profit_worst"],
@@ -78,6 +84,10 @@ const SORT_ARROW: Record<string, string> = {
   year_old: "↑",
   mileage_low: "↑",
   mileage_high: "↓",
+  power_high: "↓",
+  power_low: "↑",
+  fuel_az: "↓",
+  fuel_za: "↑",
   price_low: "↑",
   price_high: "↓",
   fair_low: "↑",
@@ -141,6 +151,8 @@ export default function CarsPage() {
       drive: applied.drive,
       price_min: applied.price_min,
       price_max: applied.price_max,
+      power_min: applied.power_min,
+      power_max: applied.power_max,
       year_min: applied.year_min,
       year_max: applied.year_max,
       mileage_max: applied.mileage_max,
@@ -276,6 +288,18 @@ export default function CarsPage() {
         />
         <input
           className={`${inputCls} w-28`}
+          value={draft.power_min}
+          onChange={(e) => set("power_min", e.target.value)}
+          placeholder="Min kW"
+        />
+        <input
+          className={`${inputCls} w-28`}
+          value={draft.power_max}
+          onChange={(e) => set("power_max", e.target.value)}
+          placeholder="Max kW"
+        />
+        <input
+          className={`${inputCls} w-28`}
           value={draft.price_min}
           onChange={(e) => set("price_min", e.target.value)}
           placeholder="Min €"
@@ -337,8 +361,8 @@ export default function CarsPage() {
               <th className="py-2.5 pr-6">Car</th>
               <SortTh label="Year" k="year" sort={applied.sort} onClick={onSortClick} right />
               <SortTh label="KM" k="km" sort={applied.sort} onClick={onSortClick} right />
-              <th className="px-4 py-2.5">Fuel</th>
-              <th className="px-4 py-2.5 text-right">KW</th>
+              <SortTh label="Fuel" k="fuel" sort={applied.sort} onClick={onSortClick} />
+              <SortTh label="KW" k="power" sort={applied.sort} onClick={onSortClick} right />
               <th className="px-4 py-2.5">Gearbox</th>
               <SortTh label="Price" k="price" sort={applied.sort} onClick={onSortClick} right />
               <SortTh label="Fair" k="fair" sort={applied.sort} onClick={onSortClick} right />

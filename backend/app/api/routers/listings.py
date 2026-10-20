@@ -110,6 +110,8 @@ def list_listings(
     drive: str | None = Query(None),
     price_min: float | None = Query(None, ge=0),
     price_max: float | None = Query(None, ge=0),
+    power_min: int | None = Query(None, ge=0),
+    power_max: int | None = Query(None, ge=0),
     year_min: int | None = Query(None, ge=1900),
     year_max: int | None = Query(None, le=2100),
     mileage_max: int | None = Query(None, ge=0),
@@ -119,7 +121,7 @@ def list_listings(
     verdict: str | None = Query(None, pattern="^(cheap|fair|overpriced|suspicious)$"),
     sort: str = Query(
         "newest",
-        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|mileage_high|fair_low|fair_high|deal_best|deal_worst|profit_best|profit_worst)$",
+        pattern="^(newest|price_low|price_high|year_new|year_old|mileage_low|mileage_high|power_low|power_high|fuel_az|fuel_za|fair_low|fair_high|deal_best|deal_worst|profit_best|profit_worst)$",
     ),
 ) -> dict:
     """Paginated listing feed with filtering and sorting."""
@@ -169,6 +171,10 @@ def list_listings(
         conditions.append(Listing.price_eur >= price_min)
     if price_max is not None:
         conditions.append(Listing.price_eur <= price_max)
+    if power_min is not None:
+        conditions.append(Listing.power_kw >= power_min)
+    if power_max is not None:
+        conditions.append(Listing.power_kw <= power_max)
     if year_min is not None:
         conditions.append(Listing.year >= year_min)
     if year_max is not None:
@@ -244,6 +250,10 @@ def list_listings(
             "year_old": Listing.year.asc(),
             "mileage_low": Listing.mileage_km.asc().nulls_last(),
             "mileage_high": Listing.mileage_km.desc().nulls_last(),
+            "power_low": Listing.power_kw.asc().nulls_last(),
+            "power_high": Listing.power_kw.desc().nulls_last(),
+            "fuel_az": Listing.fuel.asc().nulls_last(),
+            "fuel_za": Listing.fuel.desc().nulls_last(),
         }[sort]
 
     if not isinstance(order, tuple):

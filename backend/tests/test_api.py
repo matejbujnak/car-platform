@@ -109,6 +109,18 @@ def test_listing_ids_filter(client, session, sample_listing):
     assert client.get("/api/listings?ids=999999&status=all").json()["total"] == 0
 
 
+def test_power_and_fuel_filters_and_sorts(client, session, sample_listing):
+    # Power filter (sample has 110 kW).
+    assert client.get("/api/listings?power_min=100&power_max=150").json()["total"] == 1
+    assert client.get("/api/listings?power_min=200").json()["total"] == 0
+
+    # Clickable column sorts must keep rows and respond.
+    for sort in ("power_high", "power_low", "fuel_az", "fuel_za"):
+        resp = client.get(f"/api/listings?sort={sort}")
+        assert resp.status_code == 200, sort
+        assert resp.json()["total"] == 1, sort
+
+
 def test_price_history_is_recorded(client, session, sample_listing):
     """A new listing gets one price point; price changes add more."""
     from app.scraping.store import upsert_listings
