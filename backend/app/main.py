@@ -12,6 +12,7 @@ from sqlmodel import Session
 
 from app import config
 from app.db.session import engine
+from app.ml.predict import active_artifact
 from app.core.rate_limit import limiter
 from app.api.routers import admin, auth, charts, health, listings, predict, stats
 from app.db.seed import seed_admin
@@ -24,6 +25,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     # docker-compose files: "alembic upgrade head && uvicorn ...").
     with Session(engine) as session:
         seed_admin(session)
+        # Load the active model once so the first request is not slow (and the
+        # reverse proxy does not time out into a 502).
+        active_artifact(session)
     yield
 
 

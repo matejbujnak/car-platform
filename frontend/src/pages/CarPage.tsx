@@ -9,6 +9,7 @@ import {
 } from "../api";
 import { getCompareIds, toggleCompare } from "../compare";
 import DealBadge from "../components/DealBadge";
+import ErrorState from "../components/ErrorState";
 import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
 import { LineChart } from "../components/charts";
@@ -52,7 +53,7 @@ export default function CarPage() {
       .catch(console.error);
   };
 
-  if (error) return <p className="mt-16 text-center text-red-500">{error}</p>;
+  if (error) return <ErrorState message={error} />;
   if (!car) return <p className="mt-16 text-center text-slate-400">Loading…</p>;
 
   return (
@@ -65,6 +66,11 @@ export default function CarPage() {
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">{car.title}</h1>
+          <p className="mt-1 text-sm text-slate-500">
+            {car.year} · {formatKm(car.mileage_km)} ·{" "}
+            {car.power_kw ? `${car.power_kw} kW` : "—"} · {car.fuel ?? "—"} ·{" "}
+            {car.gearbox ?? "—"}
+          </p>
           <p className="mt-1 text-sm text-slate-400">
             {car.seller_type === "dealer"
               ? "Dealer offer"
@@ -243,7 +249,15 @@ export default function CarPage() {
         </div>
 
         {/* Right: price card */}
-        <aside className="border border-slate-200 bg-white px-6 py-5 lg:sticky lg:top-4">
+        <aside
+          className={`border bg-white px-6 py-5 lg:sticky lg:top-4 ${
+            car.deal_score != null && car.deal_score > 0.05
+              ? "border-emerald-300"
+              : car.deal_score != null && car.deal_score < -0.05
+                ? "border-red-300"
+                : "border-slate-200"
+          }`}
+        >
           <div className="text-3xl font-bold">{formatPrice(car.price_eur)}</div>
           <div className="text-xs text-slate-400">Asking price</div>
 

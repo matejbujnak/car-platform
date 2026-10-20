@@ -34,7 +34,9 @@ export function VBars({
         const x = pad.left + i * slot + (slot - barW) / 2;
         return (
           <g key={d.label}>
-            <rect x={x} y={pad.top + innerH - h} width={barW} height={h} fill={BAR} />
+            <rect x={x} y={pad.top + innerH - h} width={barW} height={h} rx="2" fill={BAR}>
+              <title>{`${d.label}: ${valueFormat(d.value)}`}</title>
+            </rect>
             <text x={x + barW / 2} y={pad.top + innerH + 16} textAnchor="middle" fontSize="11" fill={AXIS}>
               {d.label}
             </text>
@@ -71,7 +73,9 @@ export function HBars({
                 width: `${Math.max((d.value / max) * 100, 1)}%`,
                 background: color ? color(d.label) : BAR,
               }}
-            />
+            >
+              <title>{`${d.label}: ${valueFormat(d.value)}`}</title>
+            </div>
           </div>
           <span className="w-16 shrink-0 text-right text-slate-500">{valueFormat(d.value)}</span>
         </div>
@@ -115,7 +119,9 @@ export function LineChart({
       <polyline points={points} fill="none" stroke={BAR} strokeWidth="2" />
       {data.map((d, i) => (
         <g key={d.label}>
-          <circle cx={x(i)} cy={y(d.value)} r="3" fill={BAR} />
+          <circle cx={x(i)} cy={y(d.value)} r="3" fill={BAR}>
+            <title>{`${d.label}: ${valueFormat(d.value)}`}</title>
+          </circle>
           <text x={x(i)} y={pad.top + innerH + 16} textAnchor="middle" fontSize="10" fill={AXIS}>
             {d.label}
           </text>

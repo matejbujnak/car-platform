@@ -14,11 +14,19 @@ const OUT = process.env.OUT_DIR || "docs";
 const pause = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function step(label, fn) {
-  try {
-    await fn();
-    console.log("✓", label);
-  } catch (err) {
-    console.warn("✗", label, "-", err.message.split("\n")[0]);
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    try {
+      await fn();
+      console.log("✓", label);
+      return;
+    } catch (err) {
+      if (attempt === 2) {
+        console.warn("✗", label, "-", err.message.split("\n")[0]);
+      } else {
+        console.warn("… retrying", label);
+        await pause(3000);
+      }
+    }
   }
 }
 

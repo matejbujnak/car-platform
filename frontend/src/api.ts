@@ -115,6 +115,7 @@ export interface ChartPoint {
 }
 
 export interface ChartsData {
+  summary: { offers: number; avg_price: number; avg_km: number; electric_pct: number };
   price_histogram: ChartPoint[];
   mileage_price: ChartPoint[];
   price_by_year: ChartPoint[];

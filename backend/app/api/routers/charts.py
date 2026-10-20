@@ -241,7 +241,26 @@ def charts(session: Session = Depends(get_session)) -> dict:
         key=lambda point: point["value"],
     )[:10]
 
+    summary_row = session.exec(
+        select(
+            count,
+            func.avg(Listing.price_eur),
+            func.avg(Listing.mileage_km),
+            func.sum(case((Listing.fuel == "Elektromotor", 1), else_=0)),
+        ).where(*BASE_FILTERS)
+    ).one()
+    total_offers = int(summary_row[0] or 0)
+    summary = {
+        "offers": total_offers,
+        "avg_price": round(float(summary_row[1] or 0)),
+        "avg_km": round(float(summary_row[2] or 0)),
+        "electric_pct": round(
+            float(summary_row[3] or 0) / max(total_offers, 1) * 100, 1
+        ),
+    }
+
     return {
+        "summary": summary,
         "price_histogram": bucket_counts(PRICE_BUCKETS, Listing.price_eur),
         "mileage_price": [
             {

@@ -29,6 +29,15 @@ const VERDICT_COLORS: Record<string, string> = {
   suspicious: "#d97706",
 };
 
+function Summary({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-white px-5 py-4">
+      <div className="text-2xl font-semibold text-slate-900">{value}</div>
+      <div className="text-xs text-slate-500">{label}</div>
+    </div>
+  );
+}
+
 const euro = (v: number) => `${Math.round(v / 1000)}k €`;
 
 /** Aggregated statistics about the used-car market. */
@@ -68,6 +77,15 @@ export default function InsightsPage() {
         Statistics aggregated from the currently available offers (real sale
         listings only).
       </p>
+
+      {data.summary && (
+        <div className="mt-4 grid grid-cols-2 gap-px border border-slate-200 bg-slate-200 sm:grid-cols-4">
+          <Summary label="Offers analyzed" value={data.summary.offers.toLocaleString("en-US")} />
+          <Summary label="Average price" value={euro(data.summary.avg_price)} />
+          <Summary label="Average mileage" value={`${Math.round(data.summary.avg_km / 1000)}k km`} />
+          <Summary label="Electric share" value={`${data.summary.electric_pct}%`} />
+        </div>
+      )}
 
       <div className="mt-6 grid gap-6 lg:grid-cols-2">
         <ChartCard title="Price distribution" note="number of offers per price range">
