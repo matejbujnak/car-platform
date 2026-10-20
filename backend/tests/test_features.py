@@ -27,24 +27,32 @@ def test_plausible_price():
 
 
 def test_segment_stats_fallbacks():
+    # A well-populated cohort gets its own statistics...
+    octavias = [
+        {"make": "Skoda", "model": "Octavia", "price_eur": 15_000 + i * 1_000, "mileage_km": 80_000}
+        for i in range(6)
+    ]
     df = pd.DataFrame(
-        [
-            {"make": "Skoda", "model": "Octavia", "price_eur": 15_000, "mileage_km": 100_000},
-            {"make": "Skoda", "model": "Octavia", "price_eur": 20_000, "mileage_km": 80_000},
+        octavias
+        + [
+            {"make": "Skoda", "model": "Superb", "price_eur": 25_000, "mileage_km": 60_000},
             {"make": "BMW", "model": "X5", "price_eur": 60_000, "mileage_km": 50_000},
         ]
     )
     stats = build_segment_stats(df)
 
     octavia = segment_row(stats, "Skoda", "Octavia")
-    assert octavia["supply"] == 2
+    assert octavia["supply"] == 6
     assert octavia["median_price"] == 17_500
 
-    # Unknown model falls back to the make level...
-    skoda_other = segment_row(stats, "Skoda", "Superb")
-    assert skoda_other["supply"] == 2
+    # ...a tiny cohort (below MIN_COHORT_ROWS) falls back to the make level,
+    # so its "market median" is never the car's own price.
+    assert ("Skoda", "Superb") not in stats["by_model"]
+    superb = segment_row(stats, "Skoda", "Superb")
+    assert superb["supply"] == 7
+
     # ...and a fully unknown make falls back to the global stats.
-    assert segment_row(stats, "Dacia", "Duster")["supply"] == 3
+    assert segment_row(stats, "Dacia", "Duster")["supply"] == 8
     assert segment_row(None, "Skoda", "Octavia") is None
 
 

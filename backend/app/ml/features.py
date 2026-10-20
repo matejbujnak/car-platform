@@ -19,6 +19,12 @@ def plausible_price(price_eur) -> bool:
 
 # --- market ("segment") statistics ------------------------------------------
 
+# A (make, model) cohort needs this many rows before its own median is used;
+# smaller cohorts fall back to the make level. This avoids the "1-car cohort"
+# case where the market median would literally be the car's own price.
+MIN_COHORT_ROWS = 5
+
+
 def build_segment_stats(df: pd.DataFrame) -> dict:
     """Market snapshot: price/size/mileage of each (make, model) cohort.
 
@@ -38,6 +44,7 @@ def build_segment_stats(df: pd.DataFrame) -> dict:
         "by_model": {
             (str(make), str(model)): agg(frame)
             for (make, model), frame in df.groupby(["make", "model"])
+            if len(frame) >= MIN_COHORT_ROWS
         },
         "by_make": {str(make): agg(frame) for make, frame in df.groupby("make")},
         "global": agg(df),
