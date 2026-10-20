@@ -22,9 +22,21 @@ export default function App() {
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </main>
-      <footer className="border-t border-slate-100 py-5 text-center text-xs text-slate-400">
-        Car Market Analyzer — open-source demo. Listings belong to their source
-        site.
+      <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+        <p>
+          Car Market Analyzer — open-source demo. Listings belong to their
+          source site.
+        </p>
+        <p className="mt-1">
+          <a
+            href="https://github.com/matejbujnak/car-platform"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-slate-500 hover:text-slate-900"
+          >
+            Source code on GitHub ↗
+          </a>
+        </p>
       </footer>
     </div>
   );

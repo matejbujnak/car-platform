@@ -8,9 +8,10 @@ RUN useradd --create-home --uid 1000 appuser
 # Directory for model artifacts (a named volume is mounted here in deployment).
 RUN mkdir -p /models && chown appuser:appuser /models
 
-# OpenMP runtime needed by LightGBM's native library.
+# OpenMP runtime needed by LightGBM's native library; DejaVu fonts are used
+# to render the social-share preview images.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libgomp1 \
+    && apt-get install -y --no-install-recommends libgomp1 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

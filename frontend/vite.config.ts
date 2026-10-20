@@ -4,5 +4,11 @@ import tailwindcss from "@tailwindcss/vite";
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
-  server: { host: true, port: 5173 },
+  server: {
+    host: true,
+    port: 5173,
+    // The backend fetches the SPA shell for share previews through the
+    // container hostname.
+    allowedHosts: true,
+  },
 });

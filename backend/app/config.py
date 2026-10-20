@@ -68,6 +68,9 @@ SCRAPE_SCHEDULE_HOUR = int(os.getenv("SCRAPE_SCHEDULE_HOUR", "22"))
 # Timezone for SCRAPE_SCHEDULE_HOUR and the scrape window hours.
 SCHEDULE_TZ = os.getenv("SCHEDULE_TZ", "UTC")
 
+# Where to fetch the built SPA shell from (for share previews).
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://car-platform-frontend").rstrip("/")
+
 # Weekly automatic retraining (fresh data -> fresher model).
 AUTO_RETRAIN_WEEKDAY = int(os.getenv("AUTO_RETRAIN_WEEKDAY", "6"))  # 0=Mon .. 6=Sun
 AUTO_RETRAIN_HOUR = int(os.getenv("AUTO_RETRAIN_HOUR", "7"))

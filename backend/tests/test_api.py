@@ -128,6 +128,18 @@ def test_drive_filter_matches_by_meaning(client, session, sample_listing):
     assert client.get("/api/listings?drive=rear").json()["total"] == 0
 
 
+def test_share_image_and_share_page(client, session, sample_listing):
+    png = client.get(f"/api/listings/{sample_listing.id}/share.png")
+    assert png.status_code == 200
+    assert png.headers["content-type"] == "image/png"
+    assert png.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+    page = client.get(f"/car/{sample_listing.id}")
+    assert page.status_code == 200
+    assert "og:title" in page.text
+    assert "share.png" in page.text
+
+
 def test_price_history_is_recorded(client, session, sample_listing):
     """A new listing gets one price point; price changes add more."""
     from app.scraping.store import upsert_listings

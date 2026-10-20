@@ -12,6 +12,7 @@ import DealBadge from "../components/DealBadge";
 import ErrorState from "../components/ErrorState";
 import ExplanationList from "../components/ExplanationList";
 import PriceBar from "../components/PriceBar";
+import ShareButtons from "../components/ShareButtons";
 import { LineChart } from "../components/charts";
 import {
   formatDrive,
@@ -311,6 +312,8 @@ export default function CarPage() {
           <p className="mt-3 text-center text-xs text-slate-400">
             Opens the original offer on the source site
           </p>
+
+          <ShareButtons car={car} />
         </aside>
       </div>
     </div>

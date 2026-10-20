@@ -42,6 +42,7 @@ services:
       - SECRET_KEY=dev-secret-key-for-local-use-only
       - APP_ENV=development
       - MODEL_DIR=/models
+      - FRONTEND_URL=http://car-platform-frontend-dev:5173
     volumes:
       - ./backend:/app
       - models_data:/models
