@@ -44,6 +44,7 @@ services:
       - SCRAPE_MAX_DELAY_SECONDS=${SCRAPE_MAX_DELAY_SECONDS:-9}
       - SCRAPE_SCHEDULE_HOUR=${SCRAPE_SCHEDULE_HOUR:-22}
       - SCHEDULE_TZ=${SCHEDULE_TZ:-UTC}
+      - OPTUNA_TRIALS=${OPTUNA_TRIALS:-10}
     volumes:
       - models_data:/models
     expose:

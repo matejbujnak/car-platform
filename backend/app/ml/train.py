@@ -74,8 +74,9 @@ MILEAGE_MAX = 500_000
 INTERVAL_COVERAGE = 0.80
 
 # Hyperparameter search per tier (Optuna, TPE). 0 disables tuning and uses the
-# default LightGBM parameters. ~25 trials keep a retrain within minutes.
-OPTUNA_TRIALS = int(os.getenv("OPTUNA_TRIALS", "25"))
+# default LightGBM parameters; higher values squeeze out a bit more accuracy
+# but make retraining slower (each trial fits one model per tier).
+OPTUNA_TRIALS = int(os.getenv("OPTUNA_TRIALS", "10"))
 
 # Market tiers: makes are grouped by their median price (data-driven), the
 # top tier gets the luxury name. A tier with too few rows falls back to the
