@@ -93,11 +93,11 @@ def share_image(listing_id: int, session: Session = Depends(get_session)) -> Res
         anchor="ra",
     )
 
-    # Title (wrapped).
+    # Title (wrapped to fit the canvas).
     y = 132
-    for line in textwrap.wrap(row.title, width=52)[:2]:
-        draw.text((48, y), line, font=_font(38, bold=True), fill=(15, 23, 42))
-        y += 52
+    for line in textwrap.wrap(row.title, width=42)[:2]:
+        draw.text((48, y), line, font=_font(34, bold=True), fill=(15, 23, 42))
+        y += 48
 
     specs = f"{row.year}   {row.mileage_km or 0:,} km   {row.power_kw or '-'} kW   {row.fuel or '-'}".replace(",", " ")
     draw.text((48, y + 8), specs, font=_font(24), fill=(100, 116, 139))
