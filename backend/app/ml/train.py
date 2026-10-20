@@ -41,6 +41,7 @@ from lightgbm import LGBMRegressor
 from sklearn.compose import ColumnTransformer
 from sklearn.linear_model import Ridge
 from sklearn.metrics import mean_absolute_error, mean_squared_error, r2_score
+from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
@@ -71,6 +72,10 @@ MILEAGE_MAX = 500_000
 
 # Split conformal: interval covers ~80% of the residuals on held-out data.
 INTERVAL_COVERAGE = 0.80
+
+# Hyperparameter search per tier (Optuna, TPE). 0 disables tuning and uses the
+# default LightGBM parameters. ~25 trials keep a retrain within minutes.
+OPTUNA_TRIALS = int(os.getenv("OPTUNA_TRIALS", "25"))
 
 # Market tiers: makes are grouped by their median price (data-driven), the
 # top tier gets the luxury name. A tier with too few rows falls back to the
@@ -169,33 +174,75 @@ def assign_tiers(df: pd.DataFrame) -> dict[str, str]:
 
 # --- models -----------------------------------------------------------------
 
-def build_pipelines() -> dict[str, Pipeline]:
-    """Two models sharing the same preprocessing, so they are comparable."""
-    pre = ColumnTransformer(
+def _preprocessor() -> ColumnTransformer:
+    return ColumnTransformer(
         [
             ("cat", OneHotEncoder(handle_unknown="ignore"), CATEGORICAL),
             ("num", StandardScaler(), NUMERIC),
         ]
     )
-    return {
-        "ridge": Pipeline([("pre", pre), ("model", Ridge(alpha=1.0, random_state=RANDOM_STATE))]),
-        "lightgbm": Pipeline(
-            [
-                ("pre", pre),
-                (
-                    "model",
-                    LGBMRegressor(
-                        n_estimators=600,
-                        learning_rate=0.05,
-                        num_leaves=31,
-                        random_state=RANDOM_STATE,
-                        n_jobs=N_JOBS,
-                        verbose=-1,
-                    ),
-                ),
-            ]
-        ),
+
+
+def build_ridge() -> Pipeline:
+    """Linear sanity baseline."""
+    return Pipeline(
+        [("pre", _preprocessor()), ("model", Ridge(alpha=1.0, random_state=RANDOM_STATE))]
+    )
+
+
+def build_lightgbm(params: dict | None = None) -> Pipeline:
+    """Production model; `params` comes from Optuna tuning when available."""
+    kwargs = {
+        "n_estimators": 600,
+        "learning_rate": 0.05,
+        "num_leaves": 31,
+        "random_state": RANDOM_STATE,
+        "n_jobs": N_JOBS,
+        "verbose": -1,
     }
+    if params:
+        kwargs.update(params)
+    return Pipeline([("pre", _preprocessor()), ("model", LGBMRegressor(**kwargs))])
+
+
+def tune_lightgbm(x_train, y_train_log, tier: str) -> dict:
+    """Hyperparameter search with Optuna on a validation split of the train set.
+
+    The held-out calibration set stays untouched (it calibrates the interval)
+    and the test set stays untouched (it reports the metrics).
+    """
+    import optuna
+
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
+    x_fit, x_val, y_fit, y_val = train_test_split(
+        x_train, y_train_log, test_size=0.15, random_state=RANDOM_STATE
+    )
+
+    def objective(trial) -> float:
+        params = {
+            "n_estimators": trial.suggest_int("n_estimators", 200, 1200),
+            "learning_rate": trial.suggest_float("learning_rate", 0.02, 0.2, log=True),
+            "num_leaves": trial.suggest_int("num_leaves", 15, 127),
+            "min_child_samples": trial.suggest_int("min_child_samples", 5, 100),
+            "subsample": trial.suggest_float("subsample", 0.6, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.6, 1.0),
+            "reg_alpha": trial.suggest_float("reg_alpha", 1e-3, 10.0, log=True),
+            "reg_lambda": trial.suggest_float("reg_lambda", 1e-3, 10.0, log=True),
+        }
+        pipeline = build_lightgbm(params)
+        pipeline.fit(x_fit, y_fit)
+        return float(mean_squared_error(y_val.to_numpy(), pipeline.predict(x_val)))
+
+    study = optuna.create_study(
+        direction="minimize", sampler=optuna.samplers.TPESampler(seed=RANDOM_STATE)
+    )
+    study.optimize(objective, n_trials=OPTUNA_TRIALS)
+    best = dict(study.best_params)
+    print(
+        f"  tier '{tier}' tuned params: {best} "
+        f"(validation rmse {study.best_value**0.5:.4f} in log space)"
+    )
+    return best
 
 
 def metrics(y_true, y_pred) -> dict[str, float]:
@@ -259,19 +306,23 @@ def train(csv_path: str | None = None) -> None:
         x_test, y_test_price = x[test_mask], y_price[test_mask]
 
         results: dict[str, dict] = {}
-        fitted: dict[str, Pipeline] = {}
-        for name, pipeline in build_pipelines().items():
-            pipeline.fit(x_train, y_train_log)
-            pred_price = np.exp(pipeline.predict(x_test))
-            results[name] = metrics(y_test_price.to_numpy(), pred_price)
-            fitted[name] = pipeline
-            print(f"  tier '{tier}' {name:>10}: {results[name]}")
 
-        # Ridge is the sanity baseline; LightGBM is the production model (it
-        # wins on this data and supports exact SHAP explanations).
+        # Ridge is the sanity baseline.
+        ridge = build_ridge()
+        ridge.fit(x_train, y_train_log)
+        results["ridge"] = metrics(y_test_price.to_numpy(), np.exp(ridge.predict(x_test)))
+        print(f"  tier '{tier}'      ridge: {results['ridge']}")
+
+        # LightGBM is the production model (supports exact SHAP explanations);
+        # its hyperparameters are tuned with Optuna when enabled.
+        params = tune_lightgbm(x_train, y_train_log, tier) if OPTUNA_TRIALS > 0 else {}
         best_name = "lightgbm"
-        best = fitted[best_name]
+        best = build_lightgbm(params)
+        best.fit(x_train, y_train_log)
         pred_price = np.exp(best.predict(x_test))
+        results[best_name] = metrics(y_test_price.to_numpy(), pred_price)
+        print(f"  tier '{tier}' {best_name:>10}: {results[best_name]}")
+
         all_true.append(y_test_price.to_numpy())
         all_pred.append(pred_price)
 
@@ -292,6 +343,7 @@ def train(csv_path: str | None = None) -> None:
             "metrics": results[best_name],
             "rows": int(len(sub)),
             "importance": importance,
+            "params": params,
             "model_name": f"{best_name}_{tier}",
         }
 
@@ -348,6 +400,7 @@ def save_artifact(
             "r2": data["metrics"]["r2"],
             "mape_pct": data["metrics"]["mape_pct"],
             "interval_pct": round((np.exp(data["conformal_q_log"]) - 1) * 100, 1),
+            "params": data.get("params") or None,
             "top_features": data["importance"],
         }
         for tier, data in tiers_out.items()
