@@ -219,6 +219,30 @@ def search_listings(session: Session, filters: dict) -> tuple[list[dict], dict]:
     return matches, summary
 
 
+def warm_up() -> None:
+    """Load the LLM in the background at startup (cold start takes minutes)."""
+
+    def _ping() -> None:
+        try:
+            httpx.post(
+                f"{config.OLLAMA_URL}/api/chat",
+                json={
+                    "model": config.OLLAMA_MODEL,
+                    "stream": False,
+                    "keep_alive": "2h",
+                    "options": {"num_predict": 5},
+                    "messages": [{"role": "user", "content": "hi"}],
+                },
+                timeout=300.0,
+            )
+        except Exception:  # noqa: BLE001 - warm-up is best-effort
+            pass
+
+    import threading
+
+    threading.Thread(target=_ping, daemon=True).start()
+
+
 # --- generation -------------------------------------------------------------
 
 def generate_answer(question: str, filters: dict, matches: list[dict], summary: dict) -> tuple[str, bool]:
@@ -235,7 +259,11 @@ def generate_answer(question: str, filters: dict, matches: list[dict], summary: 
             json={
                 "model": config.OLLAMA_MODEL,
                 "stream": False,
-                "options": {"temperature": 0.2},
+                # Keep the model in memory between questions (a cold start on
+                # a small board takes minutes) and bound the answer length so
+                # latency stays predictable.
+                "keep_alive": "2h",
+                "options": {"temperature": 0.2, "num_predict": 350},
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {
@@ -249,7 +277,7 @@ def generate_answer(question: str, filters: dict, matches: list[dict], summary: 
                     },
                 ],
             },
-            timeout=180.0,
+            timeout=300.0,
         )
         resp.raise_for_status()
         answer = resp.json()["message"]["content"].strip()

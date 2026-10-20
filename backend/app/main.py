@@ -11,6 +11,7 @@ from slowapi.middleware import SlowAPIMiddleware
 from sqlmodel import Session
 
 from app import config
+from app.assistant import warm_up
 from app.db.session import engine
 from app.ml.predict import active_artifact
 from app.core.rate_limit import limiter
@@ -28,6 +29,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         # Load the active model once so the first request is not slow (and the
         # reverse proxy does not time out into a 502).
         active_artifact(session)
+    # Load the market-assistant LLM in the background for the same reason.
+    warm_up()
     yield
 
 
