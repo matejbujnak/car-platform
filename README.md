@@ -52,6 +52,35 @@ scraper (daily, polite)  ──►  PostgreSQL  ◄──  ML training (worker j
 - **Background jobs** — scraping, training and prediction backfill run in a
   worker container fed by a Redis queue; the API stays fast and stateless.
 
+## Results
+
+The model estimates a **fair market price** for every listing together with a
+prediction interval, and flags good deals. Current numbers on the live dataset
+(~79k cars, evaluated on a fixed holdout that never changes between trainings):
+
+| Metric | Value |
+|---|---|
+| MAE | ~2 600 € |
+| MAPE | 9.5 % |
+| R² | 0.94 |
+| Within ±20% | 92 % of cars |
+| Prediction interval | per market tier, ±12–20 % (80% coverage) |
+
+What makes it work:
+
+- **Log-price target** – errors stay relative, so cheap and expensive cars are
+  predicted with similar *percentage* accuracy
+- **Per-tier models** – budget / mid / premium / luxury segments (grouped by
+  the median price of each make in the data) each get their own LightGBM model,
+  their own tuned hyperparameters (Optuna) and their own conformal interval
+- **Market features** – median price of competing offers, number of competing
+  offers, mileage vs. the segment; the strongest predictors in the model
+- **Explainability** – exact TreeSHAP values from LightGBM; every prediction
+  comes with a per-feature EUR breakdown that sums to the fair price
+- **Data quality** – rental/subscription offers (monthly rates in the price
+  field) are detected and excluded from training, placeholder prices get no
+  deal verdict
+
 ## Tech stack
 
 Python 3.12 · FastAPI · SQLModel + Alembic · PostgreSQL · Redis · LightGBM ·
