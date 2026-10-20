@@ -138,7 +138,7 @@ export default function CarPage() {
         <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
           Price history
         </h2>
-        {history.length >= 2 ? (
+        {history.length >= 1 ? (
           <>
             <div className="mt-3 max-w-3xl">
               <LineChart
@@ -150,18 +150,20 @@ export default function CarPage() {
               />
             </div>
             <p className="mt-2 text-xs text-slate-400">
-              {history.length} observations since {history[0].observed_at.slice(0, 10)}
-              {history[history.length - 1].price_eur !== history[0].price_eur
-                ? ` · price changed by ${(
-                    history[history.length - 1].price_eur - history[0].price_eur
-                  ).toLocaleString("en-US")} € since first seen`
-                : " · price unchanged so far"}
+              {history.length === 1
+                ? `First observation ${history[0].observed_at.slice(0, 10)} - the line grows as crawls observe price changes.`
+                : `${history.length} observations since ${history[0].observed_at.slice(0, 10)}` +
+                  (history[history.length - 1].price_eur !== history[0].price_eur
+                    ? ` · price changed by ${(
+                        history[history.length - 1].price_eur - history[0].price_eur
+                      ).toLocaleString("en-US")} € since first seen`
+                    : " · price unchanged so far")}
             </p>
           </>
         ) : (
           <p className="mt-3 text-sm text-slate-400">
-            Collecting price history - changes will appear here as the daily
-            crawls observe this offer.
+            No price history yet - the daily crawls record every observed price,
+            so a timeline will appear here.
           </p>
         )}
       </section>
