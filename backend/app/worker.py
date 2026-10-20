@@ -10,7 +10,7 @@ from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 from requests.exceptions import RequestException
-from sqlalchemy import text
+from sqlalchemy import update
 from sqlmodel import Session, select
 
 from app import config
@@ -56,11 +56,12 @@ def _auto_retrain_due(session: Session, now: datetime) -> bool:
     return recent is None
 
 def _crawl_complete(run: ScrapeRun) -> bool:
+    """True when a crawl finished all of its segments (a few failed segments
+    are fine - they are simply excluded from the sold marking)."""
     return (
         run.status == ScrapeRun.Status.success
         and run.segments_total > 0
-        and run.segments_failed == 0
-        and run.segments_done >= run.segments_total
+        and run.segments_done + run.segments_failed >= run.segments_total
     )
 
 
@@ -166,21 +167,32 @@ def _resume_or_create_full_run(session: Session) -> ScrapeRun:
     return run
 
 
-def _mark_missing_as_sold(session: Session, crawl_start: datetime) -> int:
+def _mark_missing_as_sold(
+    session: Session, crawl_start: datetime, failed_segments: set[str]
+) -> int:
     """Mark active listings the complete crawl did not see as sold.
 
-    Only trust this after a CLEAN, complete crawl: a listing missing from a
-    full pass over the catalogue no longer exists on the source site.
+    Only trust this after a finished crawl: a listing missing from a full pass
+    over the catalogue no longer exists on the source site. Cars in segments
+    that failed to crawl are left alone - absence of evidence is not evidence
+    of absence.
     """
-    result = session.execute(
-        text(
-            "UPDATE listing SET status = 'sold' "
-            "WHERE status = 'active' AND last_seen < :start"
-        ),
-        {"start": crawl_start},
-    )
+    candidates = session.exec(
+        select(Listing).where(Listing.status == "active", Listing.last_seen < crawl_start)
+    ).all()
+    ids = [
+        row.id
+        for row in candidates
+        if f"{row.make}|{row.year}" not in failed_segments
+    ]
+    for start in range(0, len(ids), 1000):
+        session.execute(
+            update(Listing)
+            .where(Listing.id.in_(ids[start:start + 1000]))
+            .values(status="sold")
+        )
     session.commit()
-    return int(result.rowcount or 0)
+    return len(ids)
 
 
 def run_full_scrape(job: dict) -> None:
@@ -212,6 +224,7 @@ def run_full_scrape(job: dict) -> None:
         # The same car can appear in several segments (promoted padding
         # listings); process each car only once per run.
         seen: set[str] = set()
+        failed_segments: set[str] = set()
         consecutive_failures = 0
         aborted = False
 
@@ -220,13 +233,15 @@ def run_full_scrape(job: dict) -> None:
                 break
 
             make, year = segments[idx]
+            segment_key = f"{make or 'all'}|{year}"
             run.current_segment = f"{make or 'all'} {year}"
             run.cursor = idx
             session.add(run)
             session.commit()
 
             filters = autobazar.segment_filters(make, year)
-            while True:  # retries the segment after a rate-limit pause
+            attempts = 0
+            while True:  # retries after rate-limit pauses and transient errors
                 try:
                     for batch in autobazar.iter_pages(
                         autobazar.MAX_PAGE, filters, split=True
@@ -247,7 +262,20 @@ def run_full_scrape(job: dict) -> None:
                     log.warning("%s - pausing until the next hour", exc)
                     _sleep_until_next_hour()
                 except (RequestException, autobazar.ScrapeError) as exc:
+                    attempts += 1
+                    if attempts < 2:
+                        # Transient network errors happen; try the segment once
+                        # more before giving up on it.
+                        log.warning(
+                            "Segment '%s' failed (%s: %s) - retrying in 30s",
+                            run.current_segment,
+                            type(exc).__name__,
+                            exc,
+                        )
+                        time.sleep(30)
+                        continue
                     run.segments_failed += 1
+                    failed_segments.add(segment_key)
                     consecutive_failures += 1
                     log.warning(
                         "Segment '%s' failed (%s: %s)",
@@ -269,18 +297,26 @@ def run_full_scrape(job: dict) -> None:
             if aborted:
                 break
 
-        complete = run.segments_failed == 0 and run.segments_done >= len(segments)
+        finished = not aborted and run.segments_done + run.segments_failed >= len(segments)
         if max_segments is not None:
             # Deliberate partial run (testing / refresh) - no sold marking.
             run.status = ScrapeRun.Status.success
-        elif complete:
-            sold = _mark_missing_as_sold(session, run.started_at)
-            log.info("Crawl complete - marked %s listings as sold", sold)
+        elif finished:
+            # A finished crawl is a good crawl, even when a few segments had
+            # hiccups - sold marking simply skips those segments.
             run.status = ScrapeRun.Status.success
             run.cursor = None
             run.current_segment = None
+            run.failed_segments = ",".join(sorted(failed_segments)) or None
+            sold = _mark_missing_as_sold(session, run.started_at, failed_segments)
+            log.info(
+                "Crawl finished - marked %s listings as sold (%s segments skipped)",
+                sold,
+                len(failed_segments),
+            )
         else:
             run.status = ScrapeRun.Status.failed
+            run.failed_segments = ",".join(sorted(failed_segments)) or None
             if not run.error:
                 run.error = (
                     f"crawl incomplete: {run.segments_done} segments done, "

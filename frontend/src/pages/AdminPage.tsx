@@ -326,6 +326,11 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
                     <span className="text-red-500"> ({r.segments_failed} failed)</span>
                   )}
                   {r.current_segment ? ` · ${r.current_segment}` : ""}
+                  {r.error && (
+                    <div className="mt-1 max-w-md whitespace-normal text-xs text-red-500">
+                      {r.error}
+                    </div>
+                  )}
                 </td>
               </tr>
             ))}

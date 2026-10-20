@@ -81,6 +81,9 @@ class ScrapeRun(SQLModel, table=True):
     segments_total: int = Field(default=0)
     segments_done: int = Field(default=0)
     segments_failed: int = Field(default=0)
+    # "make|year" pairs that could not be crawled (their cars must not be
+    # marked as sold).
+    failed_segments: Optional[str] = Field(default=None)
     listings_new: int = Field(default=0)
     listings_updated: int = Field(default=0)
     error: Optional[str] = Field(default=None)
