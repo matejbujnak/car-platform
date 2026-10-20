@@ -263,7 +263,7 @@ def generate_answer(question: str, filters: dict, matches: list[dict], summary: 
                 # a small board takes minutes) and bound the answer length so
                 # latency stays predictable.
                 "keep_alive": "2h",
-                "options": {"temperature": 0.2, "num_predict": 350},
+                "options": {"temperature": 0.2, "num_predict": 220},
                 "messages": [
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {
