@@ -115,14 +115,14 @@ export default function InsightsPage() {
 
         <ChartCard
           title="Days on market"
-          note="how long sold cars stayed listed before disappearing"
+          note="how long tracked cars stayed listed before disappearing"
         >
           <VBars data={data.days_on_market} />
         </ChartCard>
 
         <ChartCard
           title="Fastest selling models"
-          note="average days on market (min. 5 sold cars)"
+          note="average days on market (min. 5 sold cars, tracked by this system)"
         >
           <HBars data={data.selling_speed} valueFormat={(v) => `${v} days`} />
         </ChartCard>

@@ -218,6 +218,11 @@ def charts(session: Session = Depends(get_session)) -> dict:
         )
     ).all()
     for make, model, first_seen, last_seen in sold_rows:
+        # Offers imported from a legacy dataset have no trustworthy first_seen
+        # (their timestamps predate the import) - only count cars this system
+        # actually tracked from listing to disappearance.
+        if last_seen < first_seen:
+            continue
         days = max((last_seen - first_seen).days, 0)
         for label, lo, hi in day_buckets:
             if lo <= days < hi:
