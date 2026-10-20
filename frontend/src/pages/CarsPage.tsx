@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
+  askParse,
   fetchListings,
   fetchModelNames,
   fetchStats,
@@ -129,6 +130,9 @@ export default function CarsPage() {
   const [items, setItems] = useState<Listing[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [smartQuery, setSmartQuery] = useState("");
+  const [smartBusy, setSmartBusy] = useState(false);
+  const [smartNote, setSmartNote] = useState<string | null>(null);
 
   useEffect(() => {
     fetchStats().then(setStats).catch(console.error);
@@ -216,6 +220,36 @@ export default function CarsPage() {
   const set = (key: keyof Filters, value: string) =>
     setDraft((f) => ({ ...f, [key]: value }));
 
+  /** Natural language -> filters (the LLM fills the controls below). */
+  const smartFilter = async () => {
+    const q = smartQuery.trim();
+    if (!q) return;
+    setSmartBusy(true);
+    setSmartNote(null);
+    try {
+      const res = await askParse(q);
+      // The API returns the same keys as the filter controls; numbers are
+      // stringified so they fit the form state.
+      const parsed = Object.fromEntries(
+        Object.entries(res.filters).map(([k, v]) => [k, String(v)]),
+      ) as Partial<Filters>;
+      const merged: Filters = { ...EMPTY, ...parsed, page: 0 };
+      setDraft(merged);
+      setApplied(merged);
+      persist(merged);
+      const keys = Object.keys(res.filters);
+      setSmartNote(
+        keys.length
+          ? `Understood (${res.source}): ${keys.join(", ")}`
+          : "Nothing to filter here - showing all cars",
+      );
+    } catch {
+      setSmartNote("Could not understand the request - try different wording");
+    } finally {
+      setSmartBusy(false);
+    }
+  };
+
   return (
     <div>
       {/* Heading */}
@@ -233,6 +267,32 @@ export default function CarsPage() {
           <span className="text-sm text-slate-400">Model: {stats.model_name}</span>
         )}
       </div>
+
+      {/* Smart filter: natural language -> the filter controls below */}
+      <section className="mt-6">
+        <form
+          onSubmit={(e) => {
+            e.preventDefault();
+            smartFilter();
+          }}
+          className="flex gap-2"
+        >
+          <input
+            value={smartQuery}
+            onChange={(e) => setSmartQuery(e.target.value)}
+            placeholder='Smart filter - describe what you want in any language, e.g. "kombi do 15 000 €, od 2019, diesel"'
+            className="flex-1 rounded border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+          />
+          <button
+            type="submit"
+            disabled={smartBusy}
+            className="rounded bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+          >
+            {smartBusy ? "Understanding…" : "Smart filter"}
+          </button>
+        </form>
+        {smartNote && <p className="mt-2 text-xs text-slate-400">{smartNote}</p>}
+      </section>
 
       {/* Filter bar */}
       <section className="mt-4 flex flex-wrap items-center gap-2">

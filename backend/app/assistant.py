@@ -15,6 +15,7 @@ The LLM (Ollama) is optional - when it is unavailable the caller still gets
 the matched listings and a factual fallback summary.
 """
 
+import json
 import re
 from typing import Optional
 
@@ -34,6 +35,115 @@ SYSTEM_PROMPT = (
 )
 
 # --- intent parsing ---------------------------------------------------------
+
+# The LLM understands phrasing and synonyms; the rule-based parser below is
+# the offline fallback when the model is unavailable.
+
+_PROMPT_TEMPLATE = """Extract car search filters from the text below and answer with ONLY a JSON object.
+
+Allowed keys (omit keys that are not mentioned):
+- make: array of brand names (e.g. ["Škoda"])
+- model: array of model names (e.g. ["Octavia"])
+- fuel: array with values from: Benzín, Diesel, Elektromotor, Hybrid (Elektrina - benzín), Hybrid (Elektrina - diesel), Plug-in hybrid, CNG + benzín, LPG + benzín
+- gearbox: "manual" or "automatic"
+- body: array with values from: Sedan, Combi, Hatchback, SUV, SUV / Off-road, Coupé, Cabrio, Liftback, Mpv/Van, Limuzína, Iné
+- drive: "front", "rear", "4x4" or "other"
+- price_min, price_max, year_min, year_max, mileage_max, power_min, power_max: numbers
+- verdict: "cheap", "fair" or "overpriced"
+- sort: one of newest, deal_best, deal_worst, price_low, price_high, year_new, year_old, mileage_low, mileage_high, power_high, fuel_az
+
+Text: \"\"\"%s\"\"\"
+JSON:"""
+
+_ENUMS = {
+    "gearbox": {"manual", "automatic"},
+    "drive": {"front", "rear", "4x4", "other"},
+    "verdict": {"cheap", "fair", "overpriced"},
+    "sort": {
+        "newest", "deal_best", "deal_worst", "price_low", "price_high",
+        "year_new", "year_old", "mileage_low", "mileage_high", "power_high",
+        "fuel_az",
+    },
+}
+_NUMBER_KEYS = {
+    "price_min", "price_max", "year_min", "year_max",
+    "mileage_max", "power_min", "power_max",
+}
+_LIST_KEYS = {"make", "model", "fuel", "body"}
+
+
+def _clean_filters(raw: dict) -> dict:
+    """Keep only known keys with sane values (the LLM output is untrusted)."""
+    filters: dict = {}
+    for key, value in raw.items():
+        if key in _NUMBER_KEYS:
+            try:
+                number = int(float(value))
+            except (TypeError, ValueError):
+                continue
+            if 0 < number < 10**7:
+                filters[key] = number
+        elif key in _ENUMS:
+            if str(value).lower() in _ENUMS[key]:
+                filters[key] = str(value).lower()
+        elif key in _LIST_KEYS and isinstance(value, list):
+            items = [str(v).strip() for v in value if str(v).strip()]
+            if items:
+                filters[key] = ",".join(items[:5])
+    return filters
+
+
+def parse_with_llm(question: str) -> dict | None:
+    """Ask the local LLM for filters as JSON. Returns None when unavailable."""
+    try:
+        resp = httpx.post(
+            f"{config.OLLAMA_URL}/api/chat",
+            json={
+                "model": config.OLLAMA_MODEL,
+                "stream": False,
+                "keep_alive": "2h",
+                "format": "json",  # force a JSON object from the model
+                "options": {"temperature": 0.0, "num_predict": 200},
+                "messages": [
+                    {"role": "system", "content": "You convert search requests into JSON filters."},
+                    {"role": "user", "content": _PROMPT_TEMPLATE % question},
+                ],
+            },
+            timeout=120.0,
+        )
+        resp.raise_for_status()
+        content = resp.json()["message"]["content"]
+        raw = json.loads(content) if isinstance(content, str) else content
+        if not isinstance(raw, dict):
+            return None
+        return _clean_filters(raw)
+    except Exception:  # noqa: BLE001 - fall back to the rule-based parser
+        return None
+
+
+def extract_filters(question: str) -> tuple[dict, str]:
+    """Best available question -> filters. Returns (filters, source).
+
+    Both sources return the same keys the listing filters use, so the UI can
+    fill its controls directly.
+    """
+    filters = parse_with_llm(question)
+    if filters:
+        return filters, "llm"
+
+    raw = parse_question(question)
+    normalized: dict = {}
+    for key, value in raw.items():
+        if key == "bodies":
+            normalized["body"] = ",".join(value)
+        elif key == "fuels":
+            normalized["fuel"] = ",".join(value)
+        elif key != "limit":
+            normalized[key] = value
+    return normalized, "rules"
+
+
+# --- rule-based fallback ----------------------------------------------------
 
 # A number with its unit; the lookahead prevents "km"/"kw" being read as "k".
 _NUM = r"(\d[\d\s.,]*)\s*(k|tis\.?|tisíc|tisic)?(?![a-z])"

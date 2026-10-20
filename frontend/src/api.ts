@@ -175,6 +175,16 @@ export function askAnswer(question: string): Promise<AskAnswerResult> {
   return request("/api/ask/answer", { method: "POST", body: JSON.stringify({ question }) });
 }
 
+export interface AskParseResult {
+  question: string;
+  filters: Record<string, string | number>;
+  source: "llm" | "rules";
+}
+
+export function askParse(question: string): Promise<AskParseResult> {
+  return request("/api/ask/parse", { method: "POST", body: JSON.stringify({ question }) });
+}
+
 export function fetchPriceHistory(id: number): Promise<{ points: PricePoint[] }> {
   return request(`/api/listings/${id}/history`);
 }

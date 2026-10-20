@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel, Field
 from sqlmodel import Session
 
-from app.assistant import generate_answer, parse_question, search_listings
+from app.assistant import extract_filters, generate_answer, parse_question, search_listings
 from app.core.rate_limit import limiter
 from app.db.session import get_session
 
@@ -13,6 +13,15 @@ router = APIRouter(prefix="/api/ask", tags=["ask"])
 
 class Question(BaseModel):
     question: str = Field(min_length=3, max_length=500)
+
+
+@router.post("/parse")
+@limiter.limit("20/minute")
+def ask_parse(request: Request, body: Question) -> dict:
+    """Natural language -> structured search filters (LLM, with a rule-based
+    fallback). The filters use the same keys as the listing filters."""
+    filters, source = extract_filters(body.question)
+    return {"question": body.question, "filters": filters, "source": source}
 
 
 @router.post("/search")

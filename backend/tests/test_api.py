@@ -153,6 +153,17 @@ def test_ask_search_and_fallback_answer(client, session, sample_listing):
     assert "Skoda" in answer["answer"]
 
 
+def test_ask_parse_falls_back_to_rules(client):
+    # No LLM in tests -> the rule-based parser answers with the same keys.
+    resp = client.post("/api/ask/parse", json={"question": "kombi do 15 000 eur od 2019"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "rules"
+    assert body["filters"]["price_max"] == 15_000
+    assert body["filters"]["year_min"] == 2019
+    assert "Combi" in body["filters"]["body"]
+
+
 def test_price_history_is_recorded(client, session, sample_listing):
     """A new listing gets one price point; price changes add more."""
     from app.scraping.store import upsert_listings
