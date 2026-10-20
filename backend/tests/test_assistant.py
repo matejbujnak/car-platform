@@ -26,6 +26,11 @@ def test_year_mileage_power_intents():
     assert f["price_max"] == 30_000
     assert "Elektromotor" in f["fuels"]
 
+    # "not older than X" means "from X" - the negation must not flip it.
+    f = parse_question("kombiky co nie su starsie ako 2020")
+    assert f.get("year_min") == 2020
+    assert "year_max" not in f
+
 
 def test_english_and_misc_intents():
     f = parse_question("cheapest 4x4 from 2018")

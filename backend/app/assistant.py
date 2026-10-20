@@ -241,11 +241,25 @@ def parse_question(question: str) -> dict:
         if value != filters.get("price_max"):
             filters["price_min"] = value
 
-    # Year: "od 2019", "od roku 2020", "newer than 2018"
-    year_from = re.search(rf"(?:od\s*roku|od|od\s*ročníka|od\s*rocnika|since|from|newer than|novšie ako|novsie ako)\s*{_YEAR}", lowered)
+    # Year: "od 2019", "not older than 2020", "nie je staršie ako 2020".
+    # A negated "older than" means "from" - normalize the phrase to "od"/"do"
+    # before matching, so the year direction is never flipped.
+    def _year_phrase(match: "re.Match[str]") -> str:
+        phrase = match.group(0).lower()
+        prefix = lowered[max(0, match.start() - 25) : match.start()]
+        negative = any(word in prefix for word in ("nie", "not", "nech"))
+        older = "star" in phrase or "older" in phrase
+        return "od" if older == negative else "do"
+
+    year_text = re.sub(
+        r"star[sš]ie\s+ako|older\s+than|nov[sš]ie\s+ako|newer\s+than",
+        _year_phrase,
+        lowered,
+    )
+    year_from = re.search(rf"(?:od\s*roku|od|od\s*ročníka|od\s*rocnika|since|from)\s*{_YEAR}", year_text)
     if year_from:
         filters["year_min"] = int(year_from.group(1))
-    year_to = re.search(rf"(?:do\s*roka|do|do\s*ročníka|do\s*rocnika|until|older than|staršie ako|starsie ako)\s*{_YEAR}", lowered)
+    year_to = re.search(rf"(?:do\s*roka|do|do\s*ročníka|do\s*rocnika|until)\s*{_YEAR}", year_text)
     if year_to:
         filters["year_max"] = int(year_to.group(1))
 
