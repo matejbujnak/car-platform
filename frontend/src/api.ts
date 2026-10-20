@@ -162,8 +162,12 @@ export function fetchListing(id: number): Promise<Listing> {
   return request(`/api/listings/${id}`);
 }
 
-export function fetchSimilar(id: number, limit = 8): Promise<{ items: Listing[] }> {
-  return request(`/api/listings/${id}/similar?limit=${limit}`);
+export function fetchSimilar(
+  id: number,
+  limit = 8,
+  offset = 0,
+): Promise<{ total: number; items: Listing[] }> {
+  return request(`/api/listings/${id}/similar?limit=${limit}&offset=${offset}`);
 }
 
 export function predict(car: Record<string, unknown>): Promise<Prediction> {

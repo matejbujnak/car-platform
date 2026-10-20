@@ -1,7 +1,7 @@
 """Public endpoints with scraped listings."""
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import asc, desc, nullslast, or_
+from sqlalchemy import asc, case, desc, nullslast, or_
 from sqlmodel import Session, func, select
 
 from app.db.models import Listing, Prediction, PriceHistory
@@ -267,30 +267,35 @@ def list_listings(
 def similar_listings(
     listing_id: int,
     session: Session = Depends(get_session),
-    limit: int = Query(8, ge=1, le=20),
+    limit: int = Query(8, ge=1, le=50),
+    offset: int = Query(0, ge=0),
 ) -> dict:
-    """Same make and model offers, closest in year, mileage and power."""
+    """Same make and model offers, closest first (year, power, mileage,
+    matching body style)."""
     row = session.get(Listing, listing_id)
     if row is None:
         raise HTTPException(status_code=404, detail="Listing not found")
 
+    # Similarity: small differences in year/power/mileage are preferred and a
+    # matching body style is worth a lot (an estate is not a hatchback).
     distance = (
-        func.abs(Listing.year - row.year)
-        + func.abs(func.coalesce(Listing.mileage_km, 0) - (row.mileage_km or 0)) / 10000.0
-        + func.abs(func.coalesce(Listing.power_kw, 0) - (row.power_kw or 0)) / 20.0
+        func.abs(Listing.year - row.year) * 2
+        + func.abs(func.coalesce(Listing.mileage_km, 0) - (row.mileage_km or 0)) / 5000.0
+        + func.abs(func.coalesce(Listing.power_kw, 0) - (row.power_kw or 0)) / 10.0
+        + case((Listing.body == row.body, 0), else_=20)
     )
+    same = (
+        (Listing.id != row.id)
+        & (Listing.make == row.make)
+        & (Listing.model == row.model)
+        & (Listing.status == "active")
+        & (Listing.offer_type == "sale")
+    )
+    total = session.exec(select(func.count()).select_from(Listing).where(same)).one()
     rows = session.exec(
-        select(Listing)
-        .where(
-            Listing.id != row.id,
-            Listing.make == row.make,
-            Listing.model == row.model,
-            Listing.status == "active",
-        )
-        .order_by(distance)
-        .limit(limit)
+        select(Listing).where(same).order_by(distance).offset(offset).limit(limit)
     ).all()
-    return {"total": len(rows), "items": _enriched(rows, session)}
+    return {"total": int(total), "items": _enriched(rows, session)}
 
 
 @router.get("/{listing_id}/history")
