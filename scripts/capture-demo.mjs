@@ -54,7 +54,15 @@ try {
 
   await step("sort by profit", async () => {
     await page.locator("th", { hasText: "Profit €" }).first().click();
-    await pause(4000);
+    // Wait for the sorted rows - a screenshot during loading shows nothing.
+    await page.waitForFunction(
+      () => {
+        const row = document.querySelector("tbody tr");
+        return row && !row.textContent.includes("Loading");
+      },
+      { timeout: 30000 },
+    );
+    await pause(3000);
     await page.screenshot({ path: `${OUT}/02-sorted.png` });
     await page.mouse.wheel(0, 600);
     await pause(2500);
@@ -75,8 +83,17 @@ try {
     await pause(1000);
     await page.keyboard.press("Escape"); // close the dropdown
     await pause(800);
-    await page.locator("button", { hasText: "Filter" }).first().click();
-    await pause(5000);
+    // Exact match: "Smart filter" also contains "Filter" and comes first.
+    await page.getByRole("button", { name: "Filter", exact: true }).click();
+    // The filtered rows are only the selected makes.
+    await page.waitForFunction(
+      () => {
+        const row = document.querySelector("tbody tr");
+        return row && /koda|olkswagen/.test(row.textContent);
+      },
+      { timeout: 30000 },
+    );
+    await pause(3000);
     await page.screenshot({ path: `${OUT}/03-filtered.png` });
   });
 

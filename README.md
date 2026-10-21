@@ -15,9 +15,9 @@ how much you would earn or lose on the purchase.
 |---|---|---|
 | ![Listings](docs/01-listings.png) | ![Detail](docs/04-detail.png) | ![Calculator](docs/05-calculator.png) |
 
-| Sorted columns | Filters | Calculator |
-|---|---|---|
-| ![Sorted](docs/02-sorted.png) | ![Filters](docs/03-filtered.png) | ![Calculator](docs/05-calculator.png) |
+| Sorted columns | Filtered (Škoda + VW) |
+|---|---|
+| ![Sorted](docs/02-sorted.png) | ![Filters](docs/03-filtered.png) |
 
 The screenshots and the GIF are captured automatically from the live demo on
 every update (see `.github/workflows/demo.yml`).
