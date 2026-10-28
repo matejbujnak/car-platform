@@ -426,12 +426,13 @@ def run_prediction_backfill() -> None:
             created += len(rows)
 
         refreshed = _refresh_cached_verdicts(session, mv)
+        model_name = mv.name
 
     log.info(
         "Prediction backfill finished: %s new rows, %s refreshed verdicts for model '%s'",
         created,
         refreshed,
-        mv.name,
+        model_name,
     )
 
 
