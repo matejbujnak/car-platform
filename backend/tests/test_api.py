@@ -1,7 +1,7 @@
 """API behaviour (FastAPI TestClient on a SQLite test database)."""
 
 
-from app.db.models import ModelVersion
+from app.db.models import ModelVersion, Prediction
 from app.core.security import hash_password, verify_password
 
 
@@ -63,6 +63,39 @@ def test_prediction_sort_keeps_rows_without_cache(client, session, sample_listin
         resp = client.get(f"/api/listings?sort={sort}")
         assert resp.status_code == 200, sort
         assert resp.json()["total"] == 1, sort
+
+
+def test_cached_deal_verdict_follows_current_price(client, session, sample_listing):
+    """Regression: a price change after the prediction was cached left a stale
+    verdict/score behind; the API must derive them from the current price."""
+    mv = ModelVersion(
+        name="test-model",
+        artifact_path="/nonexistent.joblib",
+        dataset_rows=1,
+        is_active=True,
+    )
+    session.add(mv)
+    session.commit()
+    session.refresh(mv)
+    session.add(
+        Prediction(
+            listing_id=sample_listing.id,
+            model_version_id=mv.id,
+            fair_price_eur=10_000,
+            interval_low_eur=9_000,
+            interval_high_eur=11_000,
+            deal_verdict="cheap",  # cached when the car was offered for 5 000
+            deal_score=0.5,
+        )
+    )
+    sample_listing.price_eur = 15_000  # the seller raised the price since
+    session.add(sample_listing)
+    session.commit()
+
+    item = client.get("/api/listings").json()["items"][0]
+    assert item["fair_price_eur"] == 10_000
+    assert item["deal_verdict"] == "overpriced"
+    assert item["deal_score"] == round((10_000 - 15_000) / 10_000, 4)
 
 
 def test_listing_detail_and_similar(client, session, sample_listing):

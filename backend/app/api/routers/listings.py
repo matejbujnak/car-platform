@@ -25,8 +25,6 @@ def _cached_prediction(row: Prediction) -> dict:
         "fair_price_eur": round(row.fair_price_eur),
         "interval_low_eur": round(row.interval_low_eur),
         "interval_high_eur": round(row.interval_high_eur),
-        "deal_verdict": row.deal_verdict,
-        "deal_score": row.deal_score,
     }
 
 
@@ -84,14 +82,20 @@ def _enriched(rows: list[Listing], session: Session) -> list[dict]:
             artifact, [{k: getattr(r, k) for k in CAR_FIELDS} for r in missing]
         )
         for row, pred in zip(missing, predictions):
-            verdict = score = None
-            if row.offer_type == "sale" and plausible_price(row.price_eur):
-                verdict, score = deal_verdict(row.price_eur, pred)
-            cached[row.id] = {
-                **pred,
-                "deal_verdict": verdict,
-                "deal_score": score,
-            }
+            cached[row.id] = pred
+
+    # The verdict and score depend on the asking price, which can change after
+    # the prediction was cached - always derive them from the current price so
+    # they can never drift out of sync with the profit shown next to them.
+    for row in rows:
+        pred = cached.get(row.id)
+        if pred is None:
+            continue
+        verdict = score = None
+        if row.offer_type == "sale" and plausible_price(row.price_eur):
+            verdict, score = deal_verdict(row.price_eur, pred)
+        pred["deal_verdict"] = verdict
+        pred["deal_score"] = score
 
     return [_listing_dict(row, cached.get(row.id)) for row in rows]
 

@@ -43,3 +43,8 @@ data/
 Thumbs.db
 .idea/
 .vscode/
+
+# ---- Demo capture tooling (installed ad hoc by the workflow) ----
+scripts/node_modules/
+scripts/package.json
+scripts/package-lock.json

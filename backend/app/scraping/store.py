@@ -2,7 +2,34 @@
 
 from sqlmodel import Session, select
 
-from app.db.models import Listing, PriceHistory, utcnow
+from app.db.models import Listing, Prediction, PriceHistory, utcnow
+from app.ml.features import plausible_price
+from app.ml.predict import deal_verdict
+
+
+def _refresh_prediction_verdicts(session: Session, listing: Listing) -> None:
+    """Keep cached deal verdicts in sync with the current asking price.
+
+    Fair price and interval do not depend on the asking price, so a price
+    change only needs a cheap recompute of the verdict - no model call.
+    """
+    predictions = session.exec(
+        select(Prediction).where(Prediction.listing_id == listing.id)
+    ).all()
+    for prediction in predictions:
+        verdict = score = None
+        if listing.offer_type == "sale" and plausible_price(listing.price_eur):
+            verdict, score = deal_verdict(
+                listing.price_eur,
+                {
+                    "fair_price_eur": prediction.fair_price_eur,
+                    "interval_low_eur": prediction.interval_low_eur,
+                    "interval_high_eur": prediction.interval_high_eur,
+                },
+            )
+        prediction.deal_verdict = verdict
+        prediction.deal_score = score
+        session.add(prediction)
 
 
 def upsert_listings(session: Session, items: list[dict]) -> tuple[int, int]:
@@ -28,6 +55,7 @@ def upsert_listings(session: Session, items: list[dict]) -> tuple[int, int]:
                 )
         else:
             price_changed = item.get("price_eur") not in (None, listing.price_eur)
+            offer_changed = item.get("offer_type") not in (None, listing.offer_type)
             for key, value in item.items():
                 setattr(listing, key, value)
             listing.status = "active"
@@ -41,5 +69,7 @@ def upsert_listings(session: Session, items: list[dict]) -> tuple[int, int]:
                         price_eur=item["price_eur"],
                     )
                 )
+            if price_changed or offer_changed:
+                _refresh_prediction_verdicts(session, listing)
     session.commit()
     return new, updated

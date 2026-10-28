@@ -337,6 +337,41 @@ def run_full_scrape(job: dict) -> None:
         )
 
 
+def _refresh_cached_verdicts(session: Session, mv: ModelVersion) -> int:
+    """Recompute price-dependent fields of cached predictions.
+
+    The fair price and the interval never depend on the asking price, but the
+    verdict and score do. A listing whose price changed after the prediction
+    was cached would otherwise keep a stale verdict. Returns the number of
+    refreshed rows.
+    """
+    refreshed = 0
+    pairs = session.exec(
+        select(Prediction, Listing)
+        .join(Listing, Listing.id == Prediction.listing_id)
+        .where(Prediction.model_version_id == mv.id)
+    ).all()
+    for prediction, listing in pairs:
+        verdict = score = None
+        if listing.offer_type == "sale" and plausible_price(listing.price_eur):
+            verdict, score = deal_verdict(
+                listing.price_eur,
+                {
+                    "fair_price_eur": prediction.fair_price_eur,
+                    "interval_low_eur": prediction.interval_low_eur,
+                    "interval_high_eur": prediction.interval_high_eur,
+                },
+            )
+        if prediction.deal_verdict != verdict or prediction.deal_score != score:
+            prediction.deal_verdict = verdict
+            prediction.deal_score = score
+            session.add(prediction)
+            refreshed += 1
+    if refreshed:
+        session.commit()
+    return refreshed
+
+
 def run_prediction_backfill() -> None:
     """Compute cached predictions for listings that do not have them yet.
 
@@ -390,7 +425,14 @@ def run_prediction_backfill() -> None:
             session.commit()
             created += len(rows)
 
-    log.info("Prediction backfill finished: %s rows for model '%s'", created, mv.name)
+        refreshed = _refresh_cached_verdicts(session, mv)
+
+    log.info(
+        "Prediction backfill finished: %s new rows, %s refreshed verdicts for model '%s'",
+        created,
+        refreshed,
+        mv.name,
+    )
 
 
 def run_training_job() -> None:
