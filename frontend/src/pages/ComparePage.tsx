@@ -102,9 +102,9 @@ export default function ComparePage() {
   ];
 
   return (
-    <div className="mt-8">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Compare cars</h1>
+    <div className="mt-6 md:mt-8">
+      <div className="flex items-center justify-between gap-3">
+        <h1 className="text-xl font-bold md:text-2xl">Compare cars</h1>
         <button
           onClick={() => {
             clearCompare();
@@ -117,12 +117,12 @@ export default function ComparePage() {
       </div>
 
       <div className="mt-5 overflow-x-auto">
-        <table className="w-full min-w-[720px] text-[15px]">
+        <table className="w-full text-sm md:min-w-[720px] md:text-[15px]">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-              <th className="py-2.5 pr-4"> </th>
+              <th className="sticky left-0 bg-white py-2.5 pr-3 md:pr-4"> </th>
               {cars.map((car) => (
-                <th key={car.id} className="px-4 py-2.5">
+                <th key={car.id} className="min-w-36 px-3 py-2.5 align-top normal-case md:px-4">
                   <Link to={`/car/${car.id}`} className="text-blue-700">
                     {car.title}
                   </Link>
@@ -143,9 +143,11 @@ export default function ComparePage() {
           <tbody>
             {rows.map((row) => (
               <tr key={row.label} className="border-b border-slate-100">
-                <td className="py-2.5 pr-4 text-slate-400">{row.label}</td>
+                <td className="sticky left-0 whitespace-nowrap bg-white py-2.5 pr-3 text-slate-400 md:pr-4">
+                  {row.label}
+                </td>
                 {cars.map((car) => (
-                  <td key={car.id} className="px-4 py-2.5">
+                  <td key={car.id} className="px-3 py-2.5 md:px-4">
                     {row.render(car)}
                   </td>
                 ))}

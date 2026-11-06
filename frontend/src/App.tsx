@@ -11,7 +11,7 @@ export default function App() {
   return (
     <div className="min-h-screen">
       <Header />
-      <main className="mx-auto max-w-none px-8 pb-16">
+      <main className="mx-auto max-w-none px-4 pb-16 sm:px-8">
         <Routes>
           <Route path="/" element={<CarsPage />} />
           <Route path="/car/:id" element={<CarPage />} />
@@ -22,7 +22,7 @@ export default function App() {
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </main>
-      <footer className="border-t border-slate-100 py-6 text-center text-xs text-slate-400">
+      <footer className="border-t border-slate-100 px-4 py-6 text-center text-xs text-slate-400">
         <p>
           Car Market Analyzer — open-source demo. Listings belong to their
           source site.

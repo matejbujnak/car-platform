@@ -3,3 +3,13 @@
 body {
   @apply bg-white text-slate-900 antialiased;
 }
+
+/* iOS Safari zooms into form fields with text smaller than 16px - keep them
+   at 16px on phones so tapping a filter does not zoom the whole page. */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}

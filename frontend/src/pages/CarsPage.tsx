@@ -103,6 +103,26 @@ const SORT_ARROW: Record<string, string> = {
   deal_worst: "↑",
 };
 
+// Phones get no sortable table headers - the same sort keys as a dropdown.
+const MOBILE_SORTS: [string, string][] = [
+  ["newest", "Newest first"],
+  ["profit_best", "Biggest profit €"],
+  ["deal_best", "Biggest profit %"],
+  ["price_low", "Price: low to high"],
+  ["price_high", "Price: high to low"],
+  ["year_new", "Year: newest"],
+  ["year_old", "Year: oldest"],
+  ["mileage_low", "Mileage: lowest"],
+  ["power_high", "Power: highest"],
+];
+
+// Filter keys that count as "active" on the collapsed mobile filter button.
+const COUNTED_FILTERS: (keyof Filters)[] = [
+  "make", "model", "search", "fuel", "gearbox", "body", "drive",
+  "price_min", "price_max", "power_min", "power_max",
+  "year_min", "year_max", "mileage_max", "verdict",
+];
+
 function loadInitialFilters(search: string): Filters {
   const params = Object.fromEntries(new URLSearchParams(search).entries());
   if (Object.keys(params).length > 0) {
@@ -118,7 +138,10 @@ function loadInitialFilters(search: string): Filters {
 }
 
 const inputCls =
-  "rounded border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none";
+  "w-full rounded border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none";
+// Half a row on phones, a fixed / natural width on desktop.
+const numCls = `${inputCls} md:w-28`;
+const selectCls = `${inputCls} md:w-auto`;
 
 export default function CarsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -133,6 +156,8 @@ export default function CarsPage() {
   const [smartQuery, setSmartQuery] = useState("");
   const [smartBusy, setSmartBusy] = useState(false);
   const [smartNote, setSmartNote] = useState<string | null>(null);
+  // Mobile only: the filter bar is collapsed behind a button.
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     fetchStats().then(setStats).catch(console.error);
@@ -191,6 +216,7 @@ export default function CarsPage() {
     const next = { ...draft, page: 0 };
     setApplied(next);
     persist(next);
+    setFiltersOpen(false);
   }
 
   function resetFilters() {
@@ -211,11 +237,17 @@ export default function CarsPage() {
     const [first, second] = SORT_CYCLE[key];
     const sort =
       applied.sort === first ? second : applied.sort === second ? "newest" : first;
+    applySort(sort);
+  }
+
+  function applySort(sort: string) {
     setDraft((f) => ({ ...f, sort }));
     const next = { ...applied, sort, page: 0 };
     setApplied(next);
     persist(next);
   }
+
+  const activeFilters = COUNTED_FILTERS.filter((k) => applied[k] !== "").length;
 
   const set = (key: keyof Filters, value: string) =>
     setDraft((f) => ({ ...f, [key]: value }));
@@ -253,10 +285,10 @@ export default function CarsPage() {
   return (
     <div>
       {/* Heading */}
-      <div className="mt-8 flex items-baseline justify-between">
-        <h1 className="text-2xl font-bold">
+      <div className="mt-6 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 md:mt-8">
+        <h1 className="text-xl font-bold md:text-2xl">
           Listings{" "}
-          <span className="text-lg font-normal text-slate-400">
+          <span className="text-base font-normal text-slate-400 md:text-lg">
             {total.toLocaleString("en-US")} cars
             {stats && stats.sold_total > 0 && (
               <span> · {stats.sold_total.toLocaleString("en-US")} sold</span>
@@ -264,24 +296,24 @@ export default function CarsPage() {
           </span>
         </h1>
         {stats?.model_name && (
-          <span className="text-sm text-slate-400">Model: {stats.model_name}</span>
+          <span className="text-xs text-slate-400 md:text-sm">Model: {stats.model_name}</span>
         )}
       </div>
 
       {/* Smart filter: natural language -> the filter controls below */}
-      <section className="mt-6">
+      <section className="mt-4 md:mt-6">
         <form
           onSubmit={(e) => {
             e.preventDefault();
             smartFilter();
           }}
-          className="flex gap-2"
+          className="flex flex-col gap-2 sm:flex-row"
         >
           <input
             value={smartQuery}
             onChange={(e) => setSmartQuery(e.target.value)}
             placeholder='Smart filter (LLM experiment) - write anything in any language, e.g. "kombi do 15 000 €, od 2019, diesel"'
-            className="flex-1 rounded border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
+            className="min-w-0 flex-1 rounded border border-slate-300 bg-white px-4 py-2.5 text-sm focus:border-slate-400 focus:outline-none"
           />
           <button
             type="submit"
@@ -294,8 +326,45 @@ export default function CarsPage() {
         {smartNote && <p className="mt-2 text-xs text-slate-400">{smartNote}</p>}
       </section>
 
-      {/* Filter bar */}
-      <section className="mt-4 flex flex-wrap items-center gap-2">
+      {/* Mobile: filter toggle + sort dropdown (the table headers are desktop only) */}
+      <div className="mt-3 flex gap-2 md:hidden">
+        <button
+          type="button"
+          onClick={() => setFiltersOpen((o) => !o)}
+          aria-expanded={filtersOpen}
+          className={`flex-1 rounded border px-3 py-2 text-sm font-medium ${
+            filtersOpen
+              ? "border-slate-900 bg-slate-900 text-white"
+              : "border-slate-300 bg-white text-slate-700"
+          }`}
+        >
+          Filters{activeFilters > 0 ? ` (${activeFilters})` : ""} {filtersOpen ? "▴" : "▾"}
+        </button>
+        <select
+          aria-label="Sort"
+          className="flex-1 rounded border border-slate-300 bg-white px-3 py-2 text-sm"
+          value={MOBILE_SORTS.some(([v]) => v === applied.sort) ? applied.sort : ""}
+          onChange={(e) => applySort(e.target.value)}
+        >
+          {!MOBILE_SORTS.some(([v]) => v === applied.sort) && (
+            <option value="" disabled>
+              Sorted
+            </option>
+          )}
+          {MOBILE_SORTS.map(([value, label]) => (
+            <option key={value} value={value}>
+              {label}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      {/* Filter bar: a 2-column grid on phones (collapsible), one wrapping row on desktop */}
+      <section
+        className={`mt-3 grid-cols-2 gap-2 md:mt-4 md:flex md:flex-wrap md:items-center ${
+          filtersOpen ? "grid" : "hidden"
+        }`}
+      >
         <MultiSelect
           placeholder="Make"
           value={draft.make}
@@ -309,7 +378,7 @@ export default function CarsPage() {
           options={modelOptions.map((m) => [m, m])}
         />
         <input
-          className={`${inputCls} w-40`}
+          className={`${inputCls} md:w-40`}
           value={draft.search}
           onChange={(e) => set("search", e.target.value)}
           placeholder="Search…"
@@ -339,49 +408,49 @@ export default function CarsPage() {
           options={DRIVE_FILTER_OPTIONS}
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.year_min}
           onChange={(e) => set("year_min", e.target.value)}
           placeholder="Year from"
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.year_max}
           onChange={(e) => set("year_max", e.target.value)}
           placeholder="Year to"
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.mileage_max}
           onChange={(e) => set("mileage_max", e.target.value)}
           placeholder="Max km"
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.power_min}
           onChange={(e) => set("power_min", e.target.value)}
           placeholder="Min kW"
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.power_max}
           onChange={(e) => set("power_max", e.target.value)}
           placeholder="Max kW"
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.price_min}
           onChange={(e) => set("price_min", e.target.value)}
           placeholder="Min €"
         />
         <input
-          className={`${inputCls} w-28`}
+          className={numCls}
           value={draft.price_max}
           onChange={(e) => set("price_max", e.target.value)}
           placeholder="Max €"
         />
         <select
-          className={inputCls}
+          className={selectCls}
           value={draft.status}
           onChange={(e) => set("status", e.target.value)}
         >
@@ -390,7 +459,7 @@ export default function CarsPage() {
           <option value="all">All listings</option>
         </select>
         <select
-          className={inputCls}
+          className={selectCls}
           value={draft.offer}
           onChange={(e) => set("offer", e.target.value)}
         >
@@ -399,7 +468,7 @@ export default function CarsPage() {
           <option value="all">Any offer</option>
         </select>
         <select
-          className={inputCls}
+          className={selectCls}
           value={draft.verdict}
           onChange={(e) => set("verdict", e.target.value)}
         >
@@ -409,22 +478,39 @@ export default function CarsPage() {
           <option value="overpriced">Overpriced</option>
           <option value="suspicious">Check price</option>
         </select>
-        <button
-          onClick={applyFilters}
-          className="rounded bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800"
-        >
-          Filter
-        </button>
-        <button
-          onClick={resetFilters}
-          className="px-2 py-2 text-sm text-slate-500 hover:text-slate-900"
-        >
-          Reset
-        </button>
+        <div className="col-span-2 flex gap-2 md:contents">
+          <button
+            onClick={applyFilters}
+            className="flex-1 rounded bg-slate-900 px-5 py-2 text-sm font-medium text-white hover:bg-slate-800 md:flex-none"
+          >
+            Filter
+          </button>
+          <button
+            onClick={resetFilters}
+            className="rounded border border-slate-200 px-4 py-2 text-sm text-slate-500 hover:text-slate-900 md:border-0 md:px-2"
+          >
+            Reset
+          </button>
+        </div>
       </section>
 
-      {/* Table */}
-      <section className="mt-5 overflow-x-auto">
+      {/* Phones: one card per car */}
+      <section className="mt-4 md:hidden">
+        {loading ? (
+          <p className="py-16 text-center text-slate-400">Loading…</p>
+        ) : items.length === 0 ? (
+          <p className="py-16 text-center text-slate-400">No cars match these filters.</p>
+        ) : (
+          <ul className="divide-y divide-slate-100 border-y border-slate-100">
+            {items.map((car) => (
+              <Card key={car.id} car={car} />
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Desktop / tablet: the wide sortable table */}
+      <section className="mt-5 hidden overflow-x-auto md:block">
         <table className="w-full min-w-[1250px] text-[15px]">
           <thead>
             <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -450,6 +536,12 @@ export default function CarsPage() {
                   Loading…
                 </td>
               </tr>
+            ) : items.length === 0 ? (
+              <tr>
+                <td colSpan={13} className="py-16 text-center text-slate-400">
+                  No cars match these filters.
+                </td>
+              </tr>
             ) : (
               items.map((car) => <Row key={car.id} car={car} />)
             )}
@@ -458,11 +550,11 @@ export default function CarsPage() {
       </section>
 
       {/* Pagination */}
-      <section className="mt-6 mb-4 flex items-center justify-center gap-5 text-sm">
+      <section className="mt-6 mb-4 flex items-center justify-between gap-3 text-sm sm:justify-center sm:gap-5">
         <button
           onClick={() => gotoPage(Math.max(0, applied.page - 1))}
           disabled={applied.page === 0}
-          className="text-slate-600 hover:text-slate-900 disabled:text-slate-300"
+          className="px-1 py-2 text-slate-600 hover:text-slate-900 disabled:text-slate-300"
         >
           ← Previous
         </button>
@@ -472,7 +564,7 @@ export default function CarsPage() {
         <button
           onClick={() => gotoPage(Math.min(pages - 1, applied.page + 1))}
           disabled={applied.page + 1 >= pages}
-          className="text-slate-600 hover:text-slate-900 disabled:text-slate-300"
+          className="px-1 py-2 text-slate-600 hover:text-slate-900 disabled:text-slate-300"
         >
           Next →
         </button>
@@ -507,16 +599,80 @@ function SortTh({
   );
 }
 
+// Profit of the purchase: fair price minus asking price (positive = earn).
+function profitOf(car: Listing) {
+  const hasProfit = car.deal_score != null && car.fair_price_eur != null && car.price_eur != null;
+  return {
+    eur: hasProfit ? (car.fair_price_eur ?? 0) - (car.price_eur ?? 0) : null,
+    pct: car.deal_score != null ? car.deal_score * 100 : null,
+  };
+}
+
+const profitCls = (v: number) =>
+  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-slate-400";
+const sign = (v: number) => (v > 0 ? "+" : v < 0 ? "−" : "");
+const fmtProfitEur = (v: number) =>
+  `${sign(v)}${Math.abs(Math.round(v)).toLocaleString("en-US")} €`;
+const fmtProfitPct = (v: number) => `${sign(v)}${Math.abs(v).toFixed(0)}%`;
+
+function Verdict({ car }: { car: Listing }) {
+  if (car.status === "sold")
+    return <span className="text-sm font-medium text-slate-400">Sold</span>;
+  if (car.offer_type === "rent")
+    return <span className="text-sm font-medium text-amber-600">Rental</span>;
+  return <DealBadge verdict={car.deal_verdict} />;
+}
+
+/** Mobile listing card: title + price, specs line, fair price / profit / verdict. */
+function Card({ car }: { car: Listing }) {
+  const navigate = useNavigate();
+  const sold = car.status === "sold";
+  const { eur: profitEur, pct: profitPct } = profitOf(car);
+  const specs = [
+    String(car.year),
+    formatKm(car.mileage_km),
+    formatFuel(car.fuel),
+    car.power_kw ? `${car.power_kw} kW` : null,
+    formatGearbox(car.gearbox),
+  ].filter((v) => v && v !== "—");
+  return (
+    <li
+      onClick={() => navigate(`/car/${car.id}`)}
+      className={`cursor-pointer py-3 active:bg-slate-50 ${sold ? "text-slate-400" : ""}`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className={`min-w-0 leading-snug [overflow-wrap:anywhere] ${sold ? "" : "font-medium"}`}>
+          {car.title}
+        </span>
+        <span className="shrink-0 whitespace-nowrap font-semibold">
+          {formatPrice(car.price_eur)}
+        </span>
+      </div>
+      <div className="mt-0.5 text-sm text-slate-500">{specs.join(" · ")}</div>
+      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
+        {car.fair_price_eur != null && (
+          <span className="text-slate-400">fair {formatPrice(car.fair_price_eur)}</span>
+        )}
+        {profitEur != null && (
+          <span className={`font-medium ${profitCls(profitEur)}`}>
+            {fmtProfitEur(profitEur)}
+            {profitPct != null && (
+              <span className="font-normal"> ({fmtProfitPct(profitPct)})</span>
+            )}
+          </span>
+        )}
+        <span className="ml-auto">
+          <Verdict car={car} />
+        </span>
+      </div>
+    </li>
+  );
+}
+
 function Row({ car }: { car: Listing }) {
   const navigate = useNavigate();
   const sold = car.status === "sold";
-  // Profit of the purchase: fair price minus asking price (positive = earn).
-  const hasProfit = car.deal_score != null && car.fair_price_eur != null && car.price_eur != null;
-  const profitEur = hasProfit ? (car.fair_price_eur ?? 0) - (car.price_eur ?? 0) : null;
-  const profitPct = car.deal_score != null ? car.deal_score * 100 : null;
-  const profitCls = (v: number) =>
-    v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-slate-400";
-  const sign = (v: number) => (v > 0 ? "+" : v < 0 ? "−" : "");
+  const { eur: profitEur, pct: profitPct } = profitOf(car);
   return (
     <tr
       onClick={() => navigate(`/car/${car.id}`)}
@@ -554,27 +710,17 @@ function Row({ car }: { car: Listing }) {
           profitEur != null ? profitCls(profitEur) : "text-slate-300"
         }`}
       >
-        {profitEur != null
-          ? `${sign(profitEur)}${Math.abs(Math.round(profitEur)).toLocaleString("en-US")} €`
-          : "—"}
+        {profitEur != null ? fmtProfitEur(profitEur) : "—"}
       </td>
       <td
         className={`whitespace-nowrap px-4 py-3 text-right ${
           profitPct != null ? profitCls(profitPct) : "text-slate-300"
         }`}
       >
-        {profitPct != null
-          ? `${sign(profitPct)}${Math.abs(profitPct).toFixed(0)}%`
-          : "—"}
+        {profitPct != null ? fmtProfitPct(profitPct) : "—"}
       </td>
       <td className="whitespace-nowrap px-4 py-3">
-        {sold ? (
-          <span className="text-sm font-medium text-slate-400">Sold</span>
-        ) : car.offer_type === "rent" ? (
-          <span className="text-sm font-medium text-amber-600">Rental</span>
-        ) : (
-          <DealBadge verdict={car.deal_verdict} />
-        )}
+        <Verdict car={car} />
       </td>
       <td className="whitespace-nowrap py-3 pl-6 text-right">
         <a

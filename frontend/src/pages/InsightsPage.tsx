@@ -12,7 +12,7 @@ function ChartCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border border-slate-200 bg-white px-6 py-5">
+    <section className="min-w-0 border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
       <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
         {title}
       </h2>
@@ -31,8 +31,8 @@ const VERDICT_COLORS: Record<string, string> = {
 
 function Summary({ label, value }: { label: string; value: string }) {
   return (
-    <div className="bg-white px-5 py-4">
-      <div className="text-2xl font-semibold text-slate-900">{value}</div>
+    <div className="bg-white px-4 py-3 sm:px-5 sm:py-4">
+      <div className="text-xl font-semibold sm:text-2xl text-slate-900">{value}</div>
       <div className="text-xs text-slate-500">{label}</div>
     </div>
   );
@@ -71,8 +71,8 @@ export default function InsightsPage() {
     .join(" · ");
 
   return (
-    <div className="mt-8">
-      <h1 className="text-2xl font-bold">Market insights</h1>
+    <div className="mt-6 md:mt-8">
+      <h1 className="text-xl font-bold md:text-2xl">Market insights</h1>
       <p className="mt-1 text-slate-500">
         Statistics aggregated from the currently available offers (real sale
         listings only).

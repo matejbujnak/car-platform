@@ -64,7 +64,7 @@ export default function CarPage() {
   if (!car) return <p className="mt-16 text-center text-slate-400">Loading…</p>;
 
   return (
-    <div className="mt-8">
+    <div className="mt-6 md:mt-8">
       <Link to="/" className="text-sm text-slate-500 hover:text-slate-900">
         ← Listings
       </Link>
@@ -72,7 +72,7 @@ export default function CarPage() {
       {/* Title */}
       <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">{car.title}</h1>
+          <h1 className="text-xl font-bold [overflow-wrap:anywhere] md:text-2xl">{car.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
             {car.year} · {formatKm(car.mileage_km)} ·{" "}
             {car.power_kw ? `${car.power_kw} kW` : "—"} · {formatFuel(car.fuel)} ·{" "}
@@ -88,15 +88,15 @@ export default function CarPage() {
             {car.offer_type === "rent" && " · rental / subscription offer"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-row-reverse items-center gap-3 sm:flex-row">
           <CompareButton id={car.id} />
           <DealBadge verdict={car.deal_verdict} />
         </div>
       </div>
 
-      <div className="mt-6 grid items-start gap-6 lg:grid-cols-3">
+      <div className="mt-6 grid grid-cols-1 items-start gap-6 lg:grid-cols-3">
         {/* Left: details */}
-        <div className="space-y-6 lg:col-span-2">
+        <div className="min-w-0 space-y-6 lg:col-span-2">
           <Panel title="Vehicle specs">
             <dl className="grid grid-cols-2 gap-x-8 gap-y-4 sm:grid-cols-4">
               <Spec label="Year" value={String(car.year)} />
@@ -165,7 +165,40 @@ export default function CarPage() {
           >
             {similar.length > 0 ? (
               <>
-                <div className="overflow-x-auto">
+                {/* Phones: compact list instead of the table */}
+                <ul className="-my-2 divide-y divide-slate-100 md:hidden">
+                  {similar.map((other) => {
+                    const profit = similarProfit(other);
+                    return (
+                      <li
+                        key={other.id}
+                        onClick={() => navigate(`/car/${other.id}`)}
+                        className="cursor-pointer py-2.5 active:bg-slate-50"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <span className="min-w-0 font-medium leading-snug text-blue-700 [overflow-wrap:anywhere]">
+                            {other.title}
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap font-semibold">
+                            {formatPrice(other.price_eur)}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 text-sm">
+                          <span className="text-slate-400">{diffText(other, car)}</span>
+                          {profit != null && (
+                            <span className={`font-medium ${profitColor(profit)}`}>
+                              {formatProfit(profit)}
+                            </span>
+                          )}
+                          <span className="ml-auto">
+                            <DealBadge verdict={other.deal_verdict} />
+                          </span>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="hidden overflow-x-auto md:block">
                   <table className="w-full min-w-[680px] text-[15px]">
                     <thead>
                       <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
@@ -179,12 +212,7 @@ export default function CarPage() {
                     </thead>
                     <tbody>
                       {similar.map((other) => {
-                        const profit =
-                          other.deal_score != null &&
-                          other.fair_price_eur != null &&
-                          other.price_eur != null
-                            ? other.fair_price_eur - other.price_eur
-                            : null;
+                        const profit = similarProfit(other);
                         return (
                           <tr
                             key={other.id}
@@ -207,16 +235,10 @@ export default function CarPage() {
                             </td>
                             <td
                               className={`whitespace-nowrap px-3 py-2 text-right font-medium ${
-                                profit != null && profit > 0
-                                  ? "text-emerald-600"
-                                  : profit != null && profit < 0
-                                    ? "text-red-500"
-                                    : "text-slate-300"
+                                profit != null ? profitColor(profit) : "text-slate-300"
                               }`}
                             >
-                              {profit != null
-                                ? `${profit > 0 ? "+" : profit < 0 ? "−" : ""}${Math.abs(Math.round(profit)).toLocaleString("en-US")} €`
-                                : "—"}
+                              {profit != null ? formatProfit(profit) : "—"}
                             </td>
                             <td className="px-3 py-2">
                               <DealBadge verdict={other.deal_verdict} />
@@ -257,7 +279,7 @@ export default function CarPage() {
 
         {/* Right: price card */}
         <aside
-          className={`border bg-white px-6 py-5 lg:sticky lg:top-4 ${
+          className={`order-first border bg-white px-4 py-4 sm:px-6 sm:py-5 lg:sticky lg:top-4 lg:order-none ${
             car.deal_score != null && car.deal_score > 0.05
               ? "border-emerald-300"
               : car.deal_score != null && car.deal_score < -0.05
@@ -328,7 +350,7 @@ function Panel({
   children: React.ReactNode;
 }) {
   return (
-    <section className="border border-slate-200 bg-white px-6 py-5">
+    <section className="border border-slate-200 bg-white px-4 py-4 sm:px-6 sm:py-5">
       <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
         {title}
       </h2>
@@ -364,6 +386,18 @@ function CompareButton({ id }: { id: number }) {
     </button>
   );
 }
+
+function similarProfit(other: Listing): number | null {
+  return other.deal_score != null && other.fair_price_eur != null && other.price_eur != null
+    ? other.fair_price_eur - other.price_eur
+    : null;
+}
+
+const profitColor = (v: number) =>
+  v > 0 ? "text-emerald-600" : v < 0 ? "text-red-500" : "text-slate-400";
+
+const formatProfit = (v: number) =>
+  `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString("en-US")} €`;
 
 /** Human-readable difference vs. the car being viewed. */
 function diffText(other: Listing, ref: Listing): string {

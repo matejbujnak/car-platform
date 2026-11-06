@@ -45,7 +45,7 @@ export default function MultiSelect({
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="cursor-pointer rounded border border-slate-200 bg-white px-3 py-2 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none"
+        className="w-full cursor-pointer truncate rounded border border-slate-200 bg-white px-3 py-2 text-left text-sm focus:border-slate-400 focus:outline-none md:w-auto"
       >
         {selected.length === 0
           ? placeholder
@@ -56,9 +56,10 @@ export default function MultiSelect({
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute z-20 mt-1 w-64 rounded border border-slate-200 bg-white shadow-lg">
+          <div className="absolute z-20 mt-1 w-full min-w-40 rounded border border-slate-200 bg-white shadow-lg md:w-64">
             <input
-              autoFocus
+              // On phones focusing would pop up the keyboard over the list.
+              autoFocus={window.matchMedia("(min-width: 768px)").matches}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={`Search ${placeholder.toLowerCase()}…`}
@@ -71,7 +72,7 @@ export default function MultiSelect({
               {visible.map(([label, optionValue]) => (
                 <label
                   key={optionValue}
-                  className="flex cursor-pointer items-center gap-2 px-3 py-1.5 text-sm hover:bg-slate-50"
+                  className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-slate-50 md:py-1.5"
                 >
                   <input
                     type="checkbox"

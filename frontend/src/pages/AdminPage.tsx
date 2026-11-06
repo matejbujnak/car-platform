@@ -100,9 +100,9 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
   > = (activeModel?.metrics?.tiers as Record<string, never>) ?? {};
 
   return (
-    <div className="mt-8">
+    <div className="mt-6 md:mt-8">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold">Admin</h1>
+        <h1 className="text-xl font-bold md:text-2xl">Admin</h1>
         <div className="flex items-center gap-3 text-sm">
           {running && (
             <span className="text-slate-500">
@@ -164,52 +164,54 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
           Model versions
         </h2>
-        <table className="mt-3 w-full text-[15px]">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-              <th className="py-2.5 pr-4">Model</th>
-              <th className="px-3 py-2.5 text-right">Rows</th>
-              <th className="px-3 py-2.5 text-right">MAE</th>
-              <th className="px-3 py-2.5 text-right">MAPE</th>
-              <th className="px-3 py-2.5 text-right">R²</th>
-              <th className="px-3 py-2.5 text-right">Interval</th>
-              <th className="px-3 py-2.5">Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            {models.map((m) => (
-              <tr key={m.id} className="border-b border-slate-100">
-                <td className="py-2.5 pr-4 font-medium">{m.name}</td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {m.dataset_rows.toLocaleString("en-US")}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {m.metrics ? formatPrice(m.metrics.mae) : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {m.metrics?.mape_pct != null ? `${m.metrics.mape_pct}%` : "—"}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {m.metrics?.r2 ?? "—"}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {m.metrics
-                    ? m.metrics.conformal_q_pct != null
-                      ? `± ${m.metrics.conformal_q_pct}%`
-                      : `± ${formatPrice(m.metrics.conformal_q)}`
-                    : "—"}
-                </td>
-                <td
-                  className={`px-3 py-2.5 text-sm font-medium ${
-                    m.is_active ? "text-emerald-600" : "text-slate-400"
-                  }`}
-                >
-                  {m.is_active ? "active" : "archived"}
-                </td>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-[15px]">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                <th className="py-2.5 pr-4">Model</th>
+                <th className="px-3 py-2.5 text-right">Rows</th>
+                <th className="px-3 py-2.5 text-right">MAE</th>
+                <th className="px-3 py-2.5 text-right">MAPE</th>
+                <th className="px-3 py-2.5 text-right">R²</th>
+                <th className="px-3 py-2.5 text-right">Interval</th>
+                <th className="px-3 py-2.5">Status</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {models.map((m) => (
+                <tr key={m.id} className="border-b border-slate-100">
+                  <td className="py-2.5 pr-4 font-medium">{m.name}</td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.dataset_rows.toLocaleString("en-US")}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.metrics ? formatPrice(m.metrics.mae) : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.metrics?.mape_pct != null ? `${m.metrics.mape_pct}%` : "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.metrics?.r2 ?? "—"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {m.metrics
+                      ? m.metrics.conformal_q_pct != null
+                        ? `± ${m.metrics.conformal_q_pct}%`
+                        : `± ${formatPrice(m.metrics.conformal_q)}`
+                      : "—"}
+                  </td>
+                  <td
+                    className={`px-3 py-2.5 text-sm font-medium ${
+                      m.is_active ? "text-emerald-600" : "text-slate-400"
+                    }`}
+                  >
+                    {m.is_active ? "active" : "archived"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
 
       {/* Model tiers */}
@@ -218,38 +220,40 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
             Model tiers
           </h2>
-          <table className="mt-3 w-full text-[15px]">
-            <thead>
-              <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-                <th className="py-2.5 pr-4">Tier</th>
-                <th className="px-3 py-2.5 text-right">Rows</th>
-                <th className="px-3 py-2.5 text-right">MAE</th>
-                <th className="px-3 py-2.5 text-right">MAPE</th>
-                <th className="px-3 py-2.5 text-right">R²</th>
-                <th className="px-3 py-2.5 text-right">Interval</th>
-              </tr>
-            </thead>
-            <tbody>
-              {Object.entries(tierMetrics).map(([tier, m]) => (
-                <tr key={tier} className="border-b border-slate-100">
-                  <td className="py-2.5 pr-4 font-medium">{tier}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">
-                    {m.rows.toLocaleString("en-US")}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">
-                    {formatPrice(m.mae)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">
-                    {m.mape_pct}%
-                  </td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">{m.r2}</td>
-                  <td className="px-3 py-2.5 text-right text-slate-600">
-                    ± {m.interval_pct}%
-                  </td>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-[560px] text-[15px]">
+              <thead>
+                <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                  <th className="py-2.5 pr-4">Tier</th>
+                  <th className="px-3 py-2.5 text-right">Rows</th>
+                  <th className="px-3 py-2.5 text-right">MAE</th>
+                  <th className="px-3 py-2.5 text-right">MAPE</th>
+                  <th className="px-3 py-2.5 text-right">R²</th>
+                  <th className="px-3 py-2.5 text-right">Interval</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {Object.entries(tierMetrics).map(([tier, m]) => (
+                  <tr key={tier} className="border-b border-slate-100">
+                    <td className="py-2.5 pr-4 font-medium">{tier}</td>
+                    <td className="px-3 py-2.5 text-right text-slate-600">
+                      {m.rows.toLocaleString("en-US")}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-slate-600">
+                      {formatPrice(m.mae)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-slate-600">
+                      {m.mape_pct}%
+                    </td>
+                    <td className="px-3 py-2.5 text-right text-slate-600">{m.r2}</td>
+                    <td className="px-3 py-2.5 text-right text-slate-600">
+                      ± {m.interval_pct}%
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </section>
       )}
 
@@ -262,7 +266,7 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
           <div className="mt-3 max-w-xl">
             {topFeatures.map(([name, share]) => (
               <div key={name} className="flex items-center gap-3 py-1 text-sm">
-                <span className="w-28 text-slate-600">{name}</span>
+                <span className="w-24 shrink-0 truncate text-slate-600 sm:w-28">{name}</span>
                 <div className="h-2 flex-1 bg-slate-100">
                   <div
                     className="h-2 bg-slate-900"
@@ -283,59 +287,61 @@ function Dashboard({ onLogout }: { onLogout: () => void }) {
         <h2 className="text-sm font-medium uppercase tracking-wide text-slate-400">
           Scrape runs
         </h2>
-        <table className="mt-3 w-full text-[15px]">
-          <thead>
-            <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
-              <th className="py-2.5 pr-4">Started</th>
-              <th className="px-3 py-2.5">Kind</th>
-              <th className="px-3 py-2.5">Status</th>
-              <th className="px-3 py-2.5 text-right">New</th>
-              <th className="px-3 py-2.5 text-right">Updated</th>
-              <th className="px-3 py-2.5">Progress</th>
-            </tr>
-          </thead>
-          <tbody>
-            {runs.map((r) => (
-              <tr key={r.id} className="border-b border-slate-100">
-                <td className="py-2.5 pr-4 text-slate-600">
-                  {new Date(r.started_at).toLocaleString()}
-                </td>
-                <td className="px-3 py-2.5 text-slate-600">{r.kind}</td>
-                <td
-                  className={`px-3 py-2.5 text-sm font-medium ${
-                    r.status === "success"
-                      ? "text-emerald-600"
-                      : r.status === "failed"
-                        ? "text-red-500"
-                        : "text-amber-600"
-                  }`}
-                >
-                  {r.status}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {r.listings_new}
-                </td>
-                <td className="px-3 py-2.5 text-right text-slate-600">
-                  {r.listings_updated}
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-slate-400">
-                  {r.segments_total > 0
-                    ? `${r.segments_done}/${r.segments_total}`
-                    : "—"}
-                  {r.segments_failed > 0 && (
-                    <span className="text-red-500"> ({r.segments_failed} failed)</span>
-                  )}
-                  {r.current_segment ? ` · ${r.current_segment}` : ""}
-                  {r.error && (
-                    <div className="mt-1 max-w-md whitespace-normal text-xs text-red-500">
-                      {r.error}
-                    </div>
-                  )}
-                </td>
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full min-w-[560px] text-[15px]">
+            <thead>
+              <tr className="border-b border-slate-200 text-left text-xs font-medium uppercase tracking-wide text-slate-400">
+                <th className="py-2.5 pr-4">Started</th>
+                <th className="px-3 py-2.5">Kind</th>
+                <th className="px-3 py-2.5">Status</th>
+                <th className="px-3 py-2.5 text-right">New</th>
+                <th className="px-3 py-2.5 text-right">Updated</th>
+                <th className="px-3 py-2.5">Progress</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {runs.map((r) => (
+                <tr key={r.id} className="border-b border-slate-100">
+                  <td className="py-2.5 pr-4 text-slate-600">
+                    {new Date(r.started_at).toLocaleString()}
+                  </td>
+                  <td className="px-3 py-2.5 text-slate-600">{r.kind}</td>
+                  <td
+                    className={`px-3 py-2.5 text-sm font-medium ${
+                      r.status === "success"
+                        ? "text-emerald-600"
+                        : r.status === "failed"
+                          ? "text-red-500"
+                          : "text-amber-600"
+                    }`}
+                  >
+                    {r.status}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {r.listings_new}
+                  </td>
+                  <td className="px-3 py-2.5 text-right text-slate-600">
+                    {r.listings_updated}
+                  </td>
+                  <td className="whitespace-nowrap px-3 py-2.5 text-slate-400">
+                    {r.segments_total > 0
+                      ? `${r.segments_done}/${r.segments_total}`
+                      : "—"}
+                    {r.segments_failed > 0 && (
+                      <span className="text-red-500"> ({r.segments_failed} failed)</span>
+                    )}
+                    {r.current_segment ? ` · ${r.current_segment}` : ""}
+                    {r.error && (
+                      <div className="mt-1 max-w-md whitespace-normal text-xs text-red-500">
+                        {r.error}
+                      </div>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

@@ -84,8 +84,8 @@ export default function CalculatorPage() {
   }
 
   return (
-    <div className="mt-8">
-      <h1 className="text-2xl font-bold">Price calculator</h1>
+    <div className="mt-6 md:mt-8">
+      <h1 className="text-xl font-bold md:text-2xl">Price calculator</h1>
       <p className="mt-1 text-slate-500">
         Enter the parameters of a car to estimate its fair market price. Add an
         asking price to see whether it is a good deal.
@@ -94,7 +94,7 @@ export default function CalculatorPage() {
       <div className="mt-6 grid gap-10 lg:grid-cols-2">
         {/* Form */}
         <form onSubmit={onSubmit}>
-          <div className="grid grid-cols-2 gap-x-6 gap-y-4">
+          <div className="grid grid-cols-2 gap-x-3 gap-y-4 sm:gap-x-6">
             <Select
               label="Make"
               value={form.make}
@@ -158,7 +158,7 @@ export default function CalculatorPage() {
           <button
             type="submit"
             disabled={busy}
-            className="mt-6 rounded bg-slate-900 px-6 py-2.5 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+            className="mt-6 w-full rounded bg-slate-900 px-6 py-2.5 sm:w-auto text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
           >
             {busy ? "Calculating…" : "Estimate fair price"}
           </button>
@@ -173,7 +173,7 @@ export default function CalculatorPage() {
           {result ? (
             <div className="mt-3">
               <div className="flex items-baseline gap-3">
-                <div className="text-4xl font-bold">
+                <div className="text-3xl font-bold sm:text-4xl">
                   {formatPrice(result.fair_price_eur)}
                 </div>
                 {result.deal_verdict && <DealBadge verdict={result.deal_verdict} />}
